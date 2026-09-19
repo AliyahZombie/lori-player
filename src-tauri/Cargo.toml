@@ -1,0 +1,21 @@
+[package]
+name = "lori-player"
+version = "0.1.0"
+description = "A quiet home for your local music"
+edition = "2021"
+[lib]
+name = "lori_player_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+lofty = "0.22"
+base64 = "0.22"
+walkdir = "2"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

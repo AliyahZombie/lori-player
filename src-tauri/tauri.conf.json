@@ -1,0 +1,46 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Lori Player",
+  "version": "0.1.0",
+  "identifier": "do.lori.player",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Lori Player",
+        "width": 840,
+        "height": 720,
+        "minWidth": 620,
+        "minHeight": 560,
+        "backgroundColor": "#00000000",
+        "transparent": true,
+        "decorations": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost blob: data:; media-src 'self' asset: http://asset.localhost blob:; connect-src ipc: http://ipc.localhost http://localhost:1420 ws://localhost:1420; font-src 'self' data:",
+      "assetProtocol": {
+        "enable": true,
+        "scope": []
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["deb", "appimage"],
+    "category": "Music",
+    "shortDescription": "A quiet home for local music",
+    "icon": ["icons/icon.png"],
+    "linux": {
+      "deb": {
+        "depends": ["ffmpeg"]
+      }
+    }
+  }
+}
