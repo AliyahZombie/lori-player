@@ -751,43 +751,9 @@ input[type="range"]::-moz-range-thumb {
   border: 0;
   box-shadow: none;
   height: 100vh;
-  padding: 28px 20px 8px;
+  padding: 8px 20px;
   overflow: hidden;
   user-select: none;
-}
-.float-toolbar {
-  position: absolute;
-  top: 2px;
-  left: 22px;
-  right: 22px;
-  height: 23px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  opacity: 0;
-  transition: opacity 0.18s;
-  color: #e9f4ff;
-  text-shadow:
-    0 1px 3px #10243f,
-    0 0 6px #10243f;
-  font-size: 9px;
-  letter-spacing: 2px;
-}
-.floating:hover .float-toolbar,
-.floating:focus-within .float-toolbar {
-  opacity: 1;
-}
-.float-toolbar > span {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  flex: 1;
-  cursor: grab;
-}
-.float-toolbar button {
-  padding: 3px;
-  color: #e9f4ff;
-  filter: drop-shadow(0 1px 2px #10243f);
 }
 .float-line {
   position: relative;
@@ -1181,4 +1147,21 @@ input[type="range"]::-moz-range-thumb {
 }
 .overlay-menu > button:hover {
   background: #ffffff0a;
+}
+/* Desktop controls behave as controls, while editable text keeps native editing. */
+html,
+body,
+#root,
+#root * {
+  -webkit-user-select: none;
+  user-select: none;
+}
+#root input,
+#root textarea,
+#root [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+#root img {
+  -webkit-user-drag: none;
 }

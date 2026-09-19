@@ -43,7 +43,7 @@ test("transparent lyrics shimmer crisply and slide between lines without stale l
   );
   await expect(page.locator(".floating")).toHaveCSS("backdrop-filter", "none");
   await page.mouse.move(800, 150);
-  await expect(page.locator(".float-toolbar")).toHaveCSS("opacity", "0");
+  await expect(page.locator(".floating button")).toHaveCount(0);
   await page.evaluate(() => (window as any).sendLyric("燃烧在 黑～夜～里～"));
   await expect(page.locator(".float-incoming .float-text")).toHaveText(
     "燃烧在 黑～夜～里～",
@@ -87,5 +87,5 @@ test("transparent lyrics shimmer crisply and slide between lines without stale l
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(page.locator(".float-text")).toHaveCSS("animation-name", "none");
   await page.mouse.move(350, 50);
-  await expect(page.locator(".float-toolbar")).toHaveCSS("opacity", "1");
+  await expect(page.locator(".floating button")).toHaveCount(0);
 });

@@ -21,7 +21,6 @@ import {
   MousePointer2,
   LockKeyhole,
   X,
-  GripHorizontal,
   AudioLines,
   Check,
   Upload,
@@ -152,23 +151,6 @@ function FloatingLyrics() {
   }, []);
   return (
     <div className={`floating ${state.playing ? "is-playing" : ""}`}>
-      <div className="float-toolbar">
-        <span onPointerDown={() => void getCurrentWindow().startDragging()}>
-          <GripHorizontal size={17} /> LORI · 桌面歌词
-        </span>
-        <button
-          title="播放 / 暂停"
-          onClick={() => void emit("lyric-control", "toggle")}
-        >
-          {state.playing ? <Pause size={15} /> : <Play size={15} />}
-        </button>
-        <button
-          title="关闭歌词"
-          onClick={() => void getCurrentWindow().close()}
-        >
-          <X size={17} />
-        </button>
-      </div>
       <div
         className="float-line"
         aria-label={state.line}
@@ -408,7 +390,6 @@ function App() {
     const offs: (() => void)[] = [];
     void Promise.all([
       listen("lyric-ready", () => void emit("lyric-state", stateRef.current)),
-      listen("lyric-control", () => toggleRef.current()),
     ]).then((list) => {
       if (disposed) list.forEach((f) => f());
       else offs.push(...list);
