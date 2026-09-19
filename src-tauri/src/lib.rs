@@ -251,6 +251,72 @@ async fn load_audio(app: tauri::AppHandle, path: String) -> Result<tauri::ipc::R
     .map_err(|e| e.to_string())?
 }
 
+fn parse_lyrics_position(value: &str) -> Option<(i32, i32)> {
+    let mut parts = value.split_whitespace();
+    let position = (parts.next()?.parse().ok()?, parts.next()?.parse().ok()?);
+    if parts.next().is_some() {
+        return None;
+    }
+    Some(position)
+}
+
+fn position_is_visible(
+    position: (i32, i32),
+    size: (u32, u32),
+    monitors: &[(i32, i32, u32, u32)],
+) -> bool {
+    let (x, y) = (i64::from(position.0), i64::from(position.1));
+    monitors.iter().any(|&(mx, my, mw, mh)| {
+        let (mx, my) = (i64::from(mx), i64::from(my));
+        let width = (x + i64::from(size.0)).min(mx + i64::from(mw)) - x.max(mx);
+        let height = (y + i64::from(size.1)).min(my + i64::from(mh)) - y.max(my);
+        width >= 120 && height >= 50
+    })
+}
+
+fn remember_lyrics_position(
+    app: &tauri::AppHandle,
+    window: &tauri::WebviewWindow,
+) -> Result<(), String> {
+    let directory = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
+    let path = directory.join("lyrics-position.txt");
+    if let Some(position) = std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|value| parse_lyrics_position(&value))
+    {
+        let monitors = window.available_monitors().map_err(|e| e.to_string())?;
+        let bounds: Vec<_> = monitors
+            .iter()
+            .map(|m| {
+                (
+                    m.position().x,
+                    m.position().y,
+                    m.size().width,
+                    m.size().height,
+                )
+            })
+            .collect();
+        let size = window.outer_size().map_err(|e| e.to_string())?;
+        if position_is_visible(position, (size.width, size.height), &bounds) {
+            window
+                .set_position(tauri::PhysicalPosition::new(position.0, position.1))
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    window.on_window_event(move |event| {
+        if let tauri::WindowEvent::Moved(position) = event {
+            let temporary = path.with_extension("tmp");
+            if std::fs::write(&temporary, format!("{} {}", position.x, position.y)).is_ok() {
+                if let Err(error) = std::fs::rename(&temporary, &path) {
+                    eprintln!("Could not save desktop lyric position: {error}");
+                }
+            }
+        }
+    });
+    Ok(())
+}
+
 #[tauri::command]
 async fn open_lyrics(app: tauri::AppHandle, editable: Option<bool>) -> Result<(), String> {
     let ignore_cursor = !editable.unwrap_or(false);
@@ -271,7 +337,6 @@ async fn open_lyrics(app: tauri::AppHandle, editable: Option<bool>) -> Result<()
     .shadow(false)
     .visible_on_all_workspaces(true)
     .focused(false)
-    .visible(false)
     .inner_size(760.0, 100.0)
     .min_inner_size(360.0, 90.0)
     .decorations(false)
@@ -280,6 +345,7 @@ async fn open_lyrics(app: tauri::AppHandle, editable: Option<bool>) -> Result<()
     .skip_taskbar(true)
     .build()
     .map_err(|e| e.to_string())?;
+    remember_lyrics_position(&app, &window)?;
     window
         .set_ignore_cursor_events(ignore_cursor)
         .map_err(|e| e.to_string())?;
@@ -309,6 +375,14 @@ pub fn run() {
     }
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            if let (Some(window), Some(icon)) =
+                (app.get_webview_window("main"), app.default_window_icon())
+            {
+                window.set_icon(icon.clone())?;
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             import_paths,
             load_audio,
@@ -323,6 +397,19 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn restores_valid_positions_including_negative_monitor_coordinates() {
+        assert_eq!(parse_lyrics_position("-1200 300"), Some((-1200, 300)));
+        assert_eq!(parse_lyrics_position("garbled"), None);
+        assert_eq!(parse_lyrics_position("12 30 extra"), None);
+        assert_eq!(parse_lyrics_position("999999999999 1"), None);
+        let monitors = [(-1920, 0, 1920, 1080), (0, 0, 1920, 1080)];
+        assert!(position_is_visible((-1200, 300), (760, 100), &monitors));
+        assert!(position_is_visible((600, 900), (760, 100), &monitors));
+        assert!(!position_is_visible((5000, 300), (760, 100), &monitors));
+        assert!(!position_is_visible((1900, 1070), (760, 100), &monitors));
+    }
+
     #[test]
     #[ignore = "Set LORI_TEST_MUSIC_DIR to a directory of real audio samples"]
     fn reads_real_local_samples() {
