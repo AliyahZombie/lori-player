@@ -1,59 +1,124 @@
 # Lori Player
 
-紧凑的本地音乐播放器，Tauri 2 + React。左侧播放或显示歌词，右侧管理歌单。
+**A quiet home for your local music.**
 
-## 启动
+A compact desktop music player built with Tauri 2 and React: cover art or synced lyrics on the left, your playlist on the right. Everything stays on your machine — no account, no network requests, and your audio files are never moved, renamed, or rewritten.
+
+[English](README.md) · [简体中文](README.zh-CN.md)
+
+![license: MIT](https://img.shields.io/badge/license-MIT-blue)
+![Tauri 2](https://img.shields.io/badge/Tauri-2-24C8DB)
+![React 19](https://img.shields.io/badge/React-19-61DAFB)
+![platform: Linux](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)
+
+<p align="center">
+  <img src="docs/screenshots/player-cover.png" width="400" alt="Lori Player showing cover art, transport controls and the playlist">
+  <img src="docs/screenshots/player-lyrics.png" width="400" alt="Lori Player showing synced lyrics next to the playlist">
+</p>
+<p align="center">
+  <img src="docs/screenshots/lyrics-overlay.png" width="400" alt="Transparent always-on-top desktop lyrics overlay">
+</p>
+
+## Features
+
+- **Your files stay yours.** Import with the `+` button or a folder button (recursive scan). Nothing is moved, copied, or retagged; removing a track from the library deletes nothing from disk.
+- **Metadata that is already there.** Title, artist, and embedded cover art are read from the tags; lyrics come from a sibling `.lrc` file first, then from embedded lyrics, and can also be attached by hand.
+- **Full playback control.** Play/pause, previous/next, seek by dragging, volume, shuffle, and repeat-one. Space toggles playback.
+- **Lyrics that follow the music.** Switch the left pane between cover art and synced lyrics, and click any line to jump to that moment.
+- **Desktop lyrics overlay.** A frameless, always-on-top, fully transparent window that shows one line at a time with a blue-white gradient and a soft shimmer. Lines slide in and out on change, the shimmer pauses with the music, and the overlay is click-through by default so it never blocks the window underneath.
+- **Themes.** Misty blue by default, follow the cover art, sample a color from a wallpaper, a neon breathing effect, plus adjustable window opacity.
+- **Library tools.** Favorites with a heart filter, and search across title, artist, album, and folder.
+- **Local persistence.** Library, favorites, volume, theme, and manually attached lyrics are stored locally — IndexedDB in the browser preview, the app config directory on desktop. The web build keeps file copies; the desktop build keeps original paths.
+
+## Requirements
+
+- Node.js 18+ and npm
+- A Rust toolchain (stable)
+- Tauri 2 platform prerequisites — on Linux that means GTK 3 and WebKitGTK 4.1
+- **FFmpeg** (`ffmpeg` and `ffprobe` on `PATH`) — desktop builds only, used for audio decoding
+
+## Getting started
 
 ```bash
 npm install
-npm run desktop
+
+npm run desktop   # run the Tauri desktop app
+npm run dev       # browser preview at http://localhost:1420
 ```
 
-桌面版需要 Rust、Tauri 平台依赖和 **FFmpeg**（`ffmpeg` / `ffprobe` 在 PATH 中）。当前机器已具备这些依赖。Linux 开发依赖包括 GTK 3 和 WebKitGTK 4.1。
+The browser preview imports music through the file picker or drag and drop. The desktop lyrics overlay is only available in the desktop build.
 
-网页预览：`npm run dev`，打开 http://localhost:1420 。网页通过文件选择或拖放导入音乐，桌面悬浮歌词仅桌面版可用。
+## Desktop audio compatibility
 
-## 使用
+WebKitGTK decodes some AAC and fragmented M4A streams differently from Chromium, which breaks seeking. The desktop build therefore uses FFmpeg locally to render a PCM WAV cache and plays it through a Blob created over binary IPC, so seeking behaves normally. The original files are untouched and no network access is involved. The cache lives in the app cache directory under `decoded-audio-v1`, evicts old entries automatically, and is capped at roughly 512 MiB. The currently playing decoded track is held in memory.
 
-- 歌单底部 `+` 导入歌曲，文件夹按钮递归导入。不会修改或移动原文件。
-- 点击歌曲播放；支持暂停、上一首/下一首、拖动进度、音量、随机和单曲循环。空格切换播放。
-- 自动读取标题、艺术家、内嵌封面；歌词优先加载同目录同名 `.lrc`，其次读取内嵌歌词，也可手动添加。
-- 下方「词」在封面和同步歌词之间切换，点击歌词跳转对应时间；显示器按钮打开置顶、可拖动的桌面歌词，并同步播放、暂停和主题颜色。
-- 爱心收藏歌曲，歌单顶部爱心筛选收藏；搜索歌曲、艺术家、专辑或文件夹。歌曲悬停后的 `×` 只移出曲库，不删除原文件。
-- 右上调色盘：默认雾蓝、跟随封面、从所选壁纸取色、霓虹呼吸效果和窗口不透明度。默认深色半透明背景；操作系统合成器决定最终桌面透明效果，CSS 模糊不能保证模糊窗口背后的其他应用。
-- 曲库、收藏、音量、主题和手动导入歌词在本地保存。网页曲库保存文件副本，桌面曲库保存原文件路径。
+## Desktop lyrics overlay
 
-## 桌面音频兼容
+The overlay is a transparent single-line window with clear blue-white gradient text and a moving shimmer rather than time-based coloring. When the line changes, the old one slides up and out while the new one slides in from below; the shimmer stops while playback is paused and is disabled entirely under "reduce motion". It has no toolbar, background card, blur, or window shadow — all management lives in the main player.
 
-WebKitGTK 对部分 AAC / 分段 M4A 的解码与 Chromium 不同。桌面版使用 FFmpeg 在本地生成 PCM WAV 缓存，再通过二进制 IPC 创建 Blob 播放，支持正常跳转。原文件保持不变，不访问网络。缓存位于应用缓存目录的 `decoded-audio-v1`，自动淘汰旧缓存，目标上限 512 MiB。播放时会将当前解码后的歌曲加载到内存。
+The main player's monitor button opens a menu where you can nudge the overlay into place ("Adjust position"), re-enable **click-through**, or close the overlay; every time it is reopened it starts click-through again.
 
-## 验证与打包
+The overlay remembers where you put it: the position is written to `lyrics-position.txt` in the app config directory as you drag, and restored on the next launch. Restored positions are checked against the currently connected monitors, so unplugging a second display never leaves the lyrics stranded off-screen.
+
+GNOME Wayland does not honor keep-above requests for ordinary windows, so on Linux the app automatically selects the X11 backend when XWayland is available and `GDK_BACKEND` is not set explicitly — that is what keeps the lyrics on top and visible across workspaces. Native Wayland-only sessions remain limited by the compositor. Switching backends requires restarting the whole app.
+
+## Tech stack
+
+| Layer | Choice |
+| --- | --- |
+| Shell | Tauri 2 (`do.lori.player`), Rust backend |
+| Frontend | React 19 + TypeScript, Vite |
+| Icons | lucide-react |
+| Tags (desktop) | [lofty](https://crates.io/crates/lofty) |
+| Tags (web) | [music-metadata](https://www.npmjs.com/package/music-metadata) |
+| Folder scan | [walkdir](https://crates.io/crates/walkdir) |
+| Web persistence | [idb-keyval](https://www.npmjs.com/package/idb-keyval) |
+| Decoding | FFmpeg subprocess (desktop) |
+
+```
+src/                  React UI, lyrics/LRC parsing, theme extraction
+  library.ts          Track model, LRC parsing, active-line lookup, merge
+  theme.ts            Dominant-hue extraction from cover art or wallpaper
+  main.tsx            Player shell, playlist, overlay window, IPC
+tests/                Playwright browser specs
+src-tauri/src/lib.rs  Tauri commands: import, load_audio, overlay window
+src-tauri/gen/        Tauri-generated ACL schemas
+docs/screenshots/     Screenshots used by this README
+```
+
+## Testing
 
 ```bash
-npm test
-npm run build
+npm test                     # Vitest unit tests for library and theme helpers
+npm run build                # TypeScript check + production frontend build
 cargo check --manifest-path src-tauri/Cargo.toml
 
-# 使用真实本地样本执行导入、播放、跳转、歌词、取色和持久化测试
-# 浏览器测试使用本机 Google Chrome
-LORI_SAMPLE_DIR="$HOME/tmp/bili-songs/output/sample" npm run test:browser
-LORI_TEST_MUSIC_DIR="$HOME/tmp/bili-songs/output/sample" cargo test --manifest-path src-tauri/Cargo.toml -- --ignored --nocapture
+# Rust unit tests, including the real-sample test
+LORI_TEST_MUSIC_DIR=/path/to/audio cargo test \
+  --manifest-path src-tauri/Cargo.toml -- --ignored --nocapture
 
+# Playwright browser specs (uses an installed Google Chrome)
+LORI_SAMPLE_DIR=/path/to/audio npm run test:browser
+```
+
+The browser specs and the ignored Rust test expect real local audio samples and are skipped or omitted unless you point them at a directory of your own files.
+
+## Packaging
+
+```bash
 npm run tauri build
 ```
 
-Linux 打包目标为 deb / AppImage；deb 声明 FFmpeg 依赖。其他平台需要在对应系统上构建，并安装 FFmpeg。已注册到 Toolbox：`lori-player`。
+On Linux the bundle targets are deb and AppImage, and the deb declares a dependency on FFmpeg. Other platforms must be built on their own OS with FFmpeg installed. To run the built binary from your own account, install it and add a launcher, for example:
 
-### 无背景桌面歌词
+```bash
+install -Dm755 src-tauri/target/release/lori-player ~/.local/bin/lori-player
+```
 
-桌面歌词为透明单行文字，清晰的蓝白渐变文字带动态流光，不再按时间逐渐染色。换句时旧句向上退出、新句从下方滑入，暂停时流光停止，减少动态效果设置下禁用动画。悬浮窗口只显示歌词，无操作栏、下一句、背景卡片、模糊或窗口阴影；管理入口统一在主播放器。
+## License
 
-GNOME Wayland 不支持普通窗口的 keep-above 请求，因此 Linux 在 XWayland 可用且未显式设置 `GDK_BACKEND` 时自动选择 X11 后端，确保歌词置顶并跨工作区显示。原生 Wayland-only 环境仍受合成器限制。此后端切换需要重启整个应用。
+[MIT](LICENSE) © 2026 AliyahZombie
 
-桌面歌词默认启用操作系统级鼠标穿透，文字及透明区域都不会拦截下方窗口。主播放器的显示器按钮展开菜单，可切换「调整位置」临时拖动，再选择「鼠标穿透」恢复锁定；也能直接关闭桌面歌词。每次重新打开默认恢复穿透。
+## Credits
 
-## 当前账户安装
-
-正式版已安装至 `~/.local/bin/lori-player`，启动器入口为 `~/.local/share/applications/do.lori.player.desktop`。在应用列表搜索「Lori」即可启动，或运行 `lori-player`。Toolbox 同步使用已安装版本。更新源码后需重新构建并安装二进制。
-
-界面文字禁用选中，搜索框等可编辑内容仍支持正常选择和编辑。桌面歌词的位置保存在应用配置目录 `lyrics-position.txt`，重开窗口和重启应用后恢复；会检查显示器可见区域，避免断开副屏后歌词跑到屏幕外。GNOME 启动器入口同时已固定至 Dock。
+Built on [Tauri](https://tauri.app/), [React](https://react.dev/), [Vite](https://vite.dev/), [lucide](https://lucide.dev/), [lofty](https://crates.io/crates/lofty), [music-metadata](https://www.npmjs.com/package/music-metadata), [walkdir](https://crates.io/crates/walkdir) and [FFmpeg](https://ffmpeg.org/). Thank you to the maintainers of all of them.

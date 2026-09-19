@@ -2,6 +2,8 @@
 name = "lori-player"
 version = "0.1.0"
 description = "A quiet home for your local music"
+license = "MIT"
+repository = "https://github.com/AliyahZombie/lori-player"
 edition = "2021"
 [lib]
 name = "lori_player_lib"
