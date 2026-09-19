@@ -16,7 +16,7 @@ A compact desktop music player built with Tauri 2 and React: cover art or synced
   <img src="docs/screenshots/player-lyrics.png" width="400" alt="Lori Player showing synced lyrics next to the playlist">
 </p>
 <p align="center">
-  <img src="docs/screenshots/lyrics-overlay.png" width="400" alt="Transparent always-on-top desktop lyrics overlay">
+  <img src="docs/screenshots/lyrics-overlay.png" width="400" alt="Always-on-top desktop lyrics overlay, shown over a dark backdrop">
 </p>
 
 ## Features

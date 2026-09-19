@@ -16,7 +16,7 @@
   <img src="docs/screenshots/player-lyrics.png" width="400" alt="Lori Player 显示同步歌词与歌单">
 </p>
 <p align="center">
-  <img src="docs/screenshots/lyrics-overlay.png" width="400" alt="透明置顶的桌面歌词悬浮窗">
+  <img src="docs/screenshots/lyrics-overlay.png" width="400" alt="置顶的桌面歌词悬浮窗，叠加在深色背景上展示">
 </p>
 
 ## 功能
