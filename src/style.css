@@ -1203,3 +1203,443 @@ body,
   overflow-y: auto;
   scrollbar-width: thin;
 }
+
+.playlist-footer {
+  position: relative;
+}
+.import-menu {
+  position: absolute;
+  bottom: 48px;
+  right: 10px;
+  width: 165px;
+  padding: 6px;
+  background: #252832fa;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  box-shadow: 0 8px 28px #0005;
+  z-index: 25;
+}
+.import-menu button {
+  width: 100%;
+  padding: 12px;
+  justify-content: flex-start;
+  border-radius: 5px;
+}
+.import-menu button:hover {
+  background: #ffffff0a;
+}
+.statistics {
+  width: min(780px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
+  height: min(780px, calc(100dvh - 40px));
+  margin: auto;
+  padding: 0;
+  border: 1px solid #ffffff16;
+  border-radius: 16px;
+  color: #e3e4ea;
+  background: #22252d;
+  box-shadow: 0 24px 80px #0008;
+}
+.statistics[open] {
+  display: flex;
+  flex-direction: column;
+}
+.statistics::backdrop {
+  background: #090b12b3;
+  backdrop-filter: blur(6px);
+}
+.statistics-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px 26px 12px;
+  flex-shrink: 0;
+}
+.statistics-eyebrow {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--muted);
+}
+.statistics h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 0;
+  font-size: 22px;
+  font-weight: 550;
+}
+.statistics h2 svg {
+  color: var(--accent);
+}
+.statistics-header > button {
+  color: var(--muted);
+  width: 30px;
+  height: 30px;
+}
+.statistics-scroll {
+  padding: 0 26px 20px;
+  overflow: auto;
+  min-height: 0;
+  scrollbar-width: thin;
+}
+.statistics-intro {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 8px 0 22px;
+  line-height: 1.7;
+}
+.statistics-periods {
+  display: flex;
+  gap: 6px;
+}
+.statistics-periods button {
+  border-radius: 6px;
+  background: #ffffff06;
+  padding: 8px 15px;
+  font-size: 12px;
+  color: #aeb7c6;
+}
+.statistics-periods button.active {
+  color: var(--accent);
+  background: var(--accent-muted);
+}
+.statistics-periods button:last-child {
+  margin-left: auto;
+  padding: 8px;
+}
+.statistics-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin: 14px 0 22px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.statistics input {
+  background: #ffffff06;
+  color: #cad0db;
+  border: 1px solid #ffffff10;
+  border-radius: 5px;
+  padding: 7px;
+}
+.statistics-dates label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.statistics-live {
+  margin-left: auto;
+  font-size: 10px;
+}
+.statistics-metrics {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.statistics-metrics > div {
+  background: #ffffff04;
+  border: 1px solid #ffffff09;
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.statistics-metrics span {
+  color: #a3adbd;
+  font-size: 11px;
+}
+.statistics-metrics strong {
+  font-size: 23px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.statistics-metrics > div:first-child strong {
+  font-size: 20px;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.statistics-metrics small {
+  color: #788595;
+  font-size: 10px;
+  font-weight: 400;
+}
+.statistics-tabs {
+  display: flex;
+  gap: 22px;
+  border-bottom: 1px solid var(--line);
+}
+.statistics-tabs button {
+  font-size: 12px;
+  padding: 0 0 12px;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+}
+.statistics-tabs button[aria-selected="true"] {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.statistics-panel {
+  padding-top: 16px;
+}
+.statistics-search {
+  width: 100%;
+  font-size: 11px;
+  margin-bottom: 8px;
+  padding: 10px !important;
+}
+.statistics-ranking > button {
+  width: 100%;
+  display: flex;
+  gap: 14px;
+  padding: 15px 0;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+.statistics-rank {
+  color: #727f90;
+  font-size: 12px;
+  width: 20px;
+  flex-shrink: 0;
+}
+.statistics-track {
+  min-width: 0;
+  flex: 1;
+  position: relative;
+  padding-bottom: 9px;
+}
+.statistics-track strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.statistics-track small {
+  color: #8490a2;
+  display: block;
+  font-size: 10px;
+  margin-top: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.statistics-track i {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  background: var(--accent);
+  opacity: 0.3;
+  height: 2px;
+  border-radius: 2px;
+}
+.statistics-duration {
+  font-size: 11px;
+  color: #b9c5d8;
+  font-variant-numeric: tabular-nums;
+}
+.statistics-note {
+  color: #8490a2;
+  font-size: 10px;
+  line-height: 1.9;
+}
+.statistics-empty {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  text-align: center;
+  padding: 36px 10px;
+  color: #8c9aad;
+}
+.statistics-empty h3 {
+  font-size: 14px;
+  font-weight: 400;
+  margin: 16px 0 8px;
+}
+.statistics-empty p {
+  font-size: 11px;
+  line-height: 1.8;
+}
+.statistics-footer {
+  padding: 14px 26px;
+  border-top: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.statistics-footer > div {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.statistics-footer span {
+  flex: 1;
+  font-size: 10px;
+  color: #8190a3;
+}
+.statistics-footer button {
+  padding: 9px 10px;
+  background: #ffffff07;
+  border-radius: 6px;
+  font-size: 11px;
+}
+.statistics-footer button:last-child {
+  color: var(--accent);
+  background: var(--accent-muted);
+}
+.statistics-footer p {
+  margin: 0 0 12px;
+  font-size: 11px;
+  color: #b2c5df;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.statistics-error {
+  color: #f3aaa7;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.statistics-song {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #ffffff05;
+  align-items: center;
+}
+.statistics-song button {
+  font-size: 11px;
+  color: var(--accent);
+}
+.statistics-song strong {
+  font-size: 13px;
+}
+.statistics-song span,
+.statistics-song small {
+  font-size: 11px;
+  color: #8c9aad;
+  overflow-wrap: anywhere;
+}
+.statistics-song code {
+  width: 100%;
+  font-size: 11px;
+  color: #91a9c8;
+  overflow-wrap: anywhere;
+}
+.statistics-days > div {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 18px 0;
+  font-size: 11px;
+  color: #a3afc1;
+}
+.statistics-days > div > div {
+  flex: 1;
+  background: #ffffff04;
+  height: 14px;
+  border-radius: 3px;
+}
+.statistics-days i {
+  display: block;
+  background: var(--accent);
+  opacity: 0.5;
+  height: 100%;
+  border-radius: 3px;
+}
+.statistics-days span {
+  width: 120px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.statistics-history article {
+  border-bottom: 1px solid var(--line);
+  padding: 12px 0;
+}
+.statistics-history article > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+.statistics-history strong {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.statistics-history span {
+  color: #9ab8df;
+  flex-shrink: 0;
+  font-size: 11px;
+}
+.statistics-history time,
+.statistics-history small,
+.statistics-history code {
+  display: block;
+  color: #8695aa;
+  font-size: 10px;
+  margin-top: 7px;
+  overflow-wrap: anywhere;
+}
+.statistics-history time {
+  color: #b0bac9;
+}
+#root .statistics code {
+  user-select: text;
+  -webkit-user-select: text;
+}
+.statistics-more {
+  display: flex;
+  margin: 14px auto 0;
+  font-size: 11px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  background: #ffffff08;
+}
+@media (max-width: 650px) {
+  .statistics {
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+    height: calc(100dvh - 16px);
+  }
+  .statistics-header {
+    padding: 20px 16px 12px;
+  }
+  .statistics-scroll {
+    padding: 0 16px 16px;
+  }
+  .statistics-metrics {
+    gap: 6px;
+    grid-template-columns: 1.6fr 1fr 1fr;
+  }
+  .statistics-metrics > div {
+    padding: 10px;
+  }
+  .statistics-metrics > div:first-child strong {
+    font-size: 15px;
+  }
+  .statistics-live {
+    display: none;
+  }
+  .statistics-footer {
+    padding: 12px 16px;
+  }
+  .statistics-footer span {
+    display: none;
+  }
+}
+.ledger-warning {
+  position: absolute;
+  bottom: 8px;
+  left: 12px;
+  right: 12px;
+  z-index: 35;
+  padding: 10px 14px;
+  border-radius: 6px;
+  background: #4b3035;
+  color: #ffd3d2;
+  font-size: 11px;
+  cursor: pointer;
+}

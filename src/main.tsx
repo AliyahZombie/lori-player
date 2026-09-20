@@ -344,6 +344,10 @@ function App() {
     [current?.lyrics],
   );
   const lineIndex = activeLine(lines, time);
+  const hasLyrics = useMemo(
+    () => lines.some((line) => line.text.trim().length > 0),
+    [lines],
+  );
   const lyricEl = useRef<HTMLDivElement>(null);
   const filtered = useMemo(() => {
     let list = tracks.filter(
@@ -476,13 +480,13 @@ function App() {
     line:
       lines[lineIndex]?.text ||
       (current
-        ? lines.length
+        ? hasLyrics
           ? "前奏 · 静静聆听"
           : "此刻，让音乐说话"
         : initialLyric.line),
     next:
       lines[lineIndex + 1]?.text ||
-      (current && !lines.length ? "这首歌还没有同步歌词" : ""),
+      (current && !hasLyrics ? "这首歌还没有同步歌词" : ""),
     playing,
     hue: themeHue,
     neon,
@@ -492,11 +496,16 @@ function App() {
   const stateRef = useRef(lyricState);
   stateRef.current = lyricState;
   useEffect(() => {
-    if (native) void emit("lyric-state", lyricState);
+    if (!native) return;
+    void emit("lyric-state", lyricState);
+    // The overlay is a lyric surface, not a poster: with nothing to read it
+    // hides itself, and it floats back as soon as a lyric line exists again.
+    void invoke("set_lyrics_visible", { visible: hasLyrics }).catch(() => {});
   }, [
     lyricState.line,
     lyricState.next,
     lyricState.title,
+    hasLyrics,
     lyricFontSize,
     lyricOpacity,
     playing,
@@ -688,10 +697,19 @@ function App() {
     }
     try {
       setOverlayBusy(true);
-      await invoke("open_lyrics", { editable, fontSize: lyricFontSize });
+      // The overlay hides itself while nothing is worth reading; telling the
+      // native side up front avoids flashing placeholder text on the desktop.
+      await invoke("open_lyrics", {
+        editable,
+        fontSize: lyricFontSize,
+        show: hasLyrics,
+      });
       await invoke("focus_main");
+      void emit("lyric-state", stateRef.current);
       setOverlayEditable(editable);
       setOverlayMenu(true);
+      if (!hasLyrics)
+        setNotice("当前歌曲没有歌词，桌面歌词会在有歌词时自动显示。");
     } catch (e) {
       setNotice(`歌词窗口打开失败：${String(e)}`);
     } finally {
@@ -946,8 +964,12 @@ function App() {
                   <span>□</span>
                 </button>
                 <button
-                  title="关闭播放器"
-                  onClick={() => void invoke("quit_app")}
+                  title="关闭窗口（保留后台播放）"
+                  onClick={() =>
+                    void invoke("hide_main").catch((error) =>
+                      setNotice(`隐藏窗口失败：${String(error)}`),
+                    )
+                  }
                 >
                   <X size={14} />
                 </button>

@@ -6,7 +6,11 @@ use lofty::{
 };
 use serde::Serialize;
 use std::{collections::HashSet, path::Path};
-use tauri::Manager;
+use tauri::{
+    menu::{Menu, MenuItem, PredefinedMenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    Manager,
+};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -251,6 +255,65 @@ async fn load_audio(app: tauri::AppHandle, path: String) -> Result<tauri::ipc::R
     .map_err(|e| e.to_string())?
 }
 
+// Hash the original file, never the decoded playback cache. Bounded memory and
+// a blocking worker keep disk reads away from the window/event thread.
+#[tauri::command]
+async fn fingerprint_audio(app: tauri::AppHandle, path: String) -> Result<String, String> {
+    let path = std::path::PathBuf::from(path)
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+    if !app.asset_protocol_scope().is_allowed(&path) {
+        return Err("请先将这首歌曲导入曲库".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        use std::io::Read;
+        let mut file = std::fs::File::open(path).map_err(|e| e.to_string())?;
+        let mut context = md5::Context::new();
+        let mut buffer = [0u8; 64 * 1024];
+        loop {
+            let count = file.read(&mut buffer).map_err(|e| e.to_string())?;
+            if count == 0 {
+                break;
+            }
+            context.consume(&buffer[..count]);
+        }
+        Ok(format!("{:x}", context.compute()))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn save_ledger_export(path: String, contents: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        // Write beside the destination, then rename: failed writes leave the old export intact.
+        let destination = std::path::PathBuf::from(path);
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|e| e.to_string())?
+            .as_nanos();
+        let temporary = destination.with_extension(format!("{nonce}.tmp"));
+        let result = (|| {
+            use std::io::Write;
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&temporary)
+                .map_err(|e| e.to_string())?;
+            file.write_all(contents.as_bytes())
+                .map_err(|e| e.to_string())?;
+            file.sync_all().map_err(|e| e.to_string())?;
+            std::fs::rename(&temporary, &destination).map_err(|e| e.to_string())
+        })();
+        if result.is_err() {
+            let _ = std::fs::remove_file(temporary);
+        }
+        result
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 fn parse_lyrics_position(value: &str) -> Option<(i32, i32)> {
     let mut parts = value.split_whitespace();
     let position = (parts.next()?.parse().ok()?, parts.next()?.parse().ok()?);
@@ -344,15 +407,23 @@ async fn open_lyrics(
     app: tauri::AppHandle,
     editable: Option<bool>,
     font_size: Option<f64>,
+    show: Option<bool>,
 ) -> Result<(), String> {
     let ignore_cursor = !editable.unwrap_or(false);
+    // No lyric line to read yet: build and place the overlay, but leave it
+    // hidden. The lyric window shows itself as soon as a lyric arrives.
+    let visible = show.unwrap_or(true);
     let height = lyrics_height(font_size.filter(|s| s.is_finite()).unwrap_or(34.0));
     if let Some(window) = app.get_webview_window("lyrics") {
         window
             .set_ignore_cursor_events(ignore_cursor)
             .map_err(|e| e.to_string())?;
         window.set_always_on_top(true).map_err(|e| e.to_string())?;
-        return window.show().map_err(|e| e.to_string());
+        return if visible {
+            window.show().map_err(|e| e.to_string())
+        } else {
+            window.hide().map_err(|e| e.to_string())
+        };
     }
     let window = tauri::WebviewWindowBuilder::new(
         &app,
@@ -399,7 +470,14 @@ async fn open_lyrics(
     window
         .set_ignore_cursor_events(ignore_cursor)
         .map_err(|e| e.to_string())?;
-    window.show().map_err(|e| e.to_string())
+    // The overlay is mapped once so the dock type hint and the remembered
+    // position land on a real window, then hidden again when there is no
+    // lyric yet; the webview keeps running and shows itself later.
+    if visible {
+        window.show().map_err(|e| e.to_string())
+    } else {
+        window.hide().map_err(|e| e.to_string())
+    }
 }
 #[tauri::command]
 fn focus_main(app: tauri::AppHandle) -> Result<(), String> {
@@ -417,6 +495,80 @@ fn close_lyrics(app: tauri::AppHandle) -> Result<(), String> {
     }
     Ok(())
 }
+
+// Driven by the player whenever the current song gains or loses its lyrics, so
+// the overlay never keeps a placeholder line sitting on the desktop. A missing
+// window is the normal case while desktop lyrics are switched off.
+#[tauri::command]
+fn set_lyrics_visible(app: tauri::AppHandle, visible: bool) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("lyrics") {
+        return if visible {
+            window.show().map_err(|e| e.to_string())
+        } else {
+            window.hide().map_err(|e| e.to_string())
+        };
+    }
+    Ok(())
+}
+// Hiding keeps the WebView (and its audio/recording state) alive.
+#[tauri::command]
+fn hide_main(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        window.hide().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+fn show_main(app: &tauri::AppHandle) -> tauri::Result<()> {
+    if let Some(window) = app.get_webview_window("main") {
+        window.show()?;
+        window.unminimize()?;
+        window.set_focusable(true)?;
+        window.set_focus()?;
+    }
+    Ok(())
+}
+
+fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
+    let show = MenuItem::with_id(app, "show-player", "显示播放器", true, None::<&str>)?;
+    let separator = PredefinedMenuItem::separator(app)?;
+    let quit = MenuItem::with_id(app, "quit-player", "退出播放器", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&show, &separator, &quit])?;
+    let mut tray = TrayIconBuilder::with_id("lori-player")
+        .tooltip("Lori Player")
+        .menu(&menu)
+        // Linux always exposes the menu; Windows/macOS can restore on left click.
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "show-player" => {
+                if let Err(error) = show_main(app) {
+                    eprintln!("Could not show Lori: {error}");
+                }
+            }
+            "quit-player" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if matches!(
+                event,
+                TrayIconEvent::Click {
+                    button: MouseButton::Left,
+                    button_state: MouseButtonState::Up,
+                    ..
+                }
+            ) {
+                if let Err(error) = show_main(tray.app_handle()) {
+                    eprintln!("Could not show Lori: {error}");
+                }
+            }
+        });
+    if let Some(icon) = app.default_window_icon() {
+        tray = tray.icon(icon.clone());
+    }
+    tray.build(app)?;
+    Ok(())
+}
+
 #[tauri::command]
 fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
@@ -433,20 +585,24 @@ pub fn run() {
         std::env::set_var("GDK_BACKEND", "x11");
     }
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            if let Err(error) = show_main(app) {
+                eprintln!("Could not restore Lori: {error}");
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .on_window_event(|window, event| {
-            // The lyric overlay must not keep the app alive after the main
-            // window is closed through the window manager (e.g. Alt+F4).
-            if window.label() == "main"
-                && matches!(
-                    event,
-                    tauri::WindowEvent::CloseRequested { .. } | tauri::WindowEvent::Destroyed
-                )
-            {
-                window.app_handle().exit(0);
+            if window.label() == "main" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    if let Err(error) = window.hide() {
+                        eprintln!("Could not hide Lori: {error}");
+                    }
+                }
             }
         })
         .setup(|app| {
+            create_tray(app.handle())?;
             if let (Some(window), Some(icon)) =
                 (app.get_webview_window("main"), app.default_window_icon())
             {
@@ -467,10 +623,14 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             import_paths,
             load_audio,
+            fingerprint_audio,
+            save_ledger_export,
             open_lyrics,
             close_lyrics,
+            set_lyrics_visible,
             focus_main,
             resize_lyrics,
+            hide_main,
             quit_app
         ])
         .run(tauri::generate_context!())
