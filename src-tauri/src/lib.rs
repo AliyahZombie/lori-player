@@ -9,8 +9,31 @@ use std::{collections::HashSet, path::Path};
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager,
+    Emitter, Manager,
 };
+
+// Windows ships a private decoder; never depend on the user's PATH or cwd.
+// Tauri places bundled resources next to the executable on Windows.
+fn audio_command(name: &str) -> std::process::Command {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        let directory = if cfg!(debug_assertions) {
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("vendor/ffmpeg/bin")
+        } else {
+            std::env::current_exe()
+                .expect("executable path")
+                .parent()
+                .expect("executable directory")
+                .join("ffmpeg/bin")
+        };
+        let mut command = std::process::Command::new(directory.join(format!("{name}.exe")));
+        command.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        command
+    }
+    #[cfg(not(target_os = "windows"))]
+    std::process::Command::new(name)
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -135,7 +158,7 @@ fn read_track(p: &Path, ext: &str) -> Result<Track, String> {
                 duration
             } else {
                 // Some fragmented M4A files have a zero mvhd duration.
-                std::process::Command::new("ffprobe")
+                audio_command("ffprobe")
                     .args([
                         "-v",
                         "error",
@@ -189,7 +212,7 @@ fn decoded_audio(app: &tauri::AppHandle, path: &Path) -> Result<Vec<u8>, String>
         .unwrap_or_default()
         .as_nanos();
     let temporary = directory.join(format!("{}-{nonce}.tmp.wav", std::process::id()));
-    let output = std::process::Command::new("ffmpeg")
+    let output = audio_command("ffmpeg")
         .args(["-nostdin", "-v", "error", "-y", "-i"])
         .arg(path)
         .args([
@@ -207,7 +230,13 @@ fn decoded_audio(app: &tauri::AppHandle, path: &Path) -> Result<Vec<u8>, String>
         ])
         .arg(&temporary)
         .output()
-        .map_err(|e| format!("无法启动本地音频解码器，请安装 FFmpeg：{e}"))?;
+        .map_err(|e| {
+            if cfg!(target_os = "windows") {
+                format!("无法启动内置音频解码器，请重新安装 Lori Player：{e}")
+            } else {
+                format!("无法启动本地音频解码器，请安装 FFmpeg：{e}")
+            }
+        })?;
     if !output.status.success() {
         let _ = std::fs::remove_file(&temporary);
         return Err(format!(
@@ -481,11 +510,7 @@ async fn open_lyrics(
 }
 #[tauri::command]
 fn focus_main(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("main") {
-        window.set_focusable(true).map_err(|e| e.to_string())?;
-        window.set_focus().map_err(|e| e.to_string())?;
-    }
-    Ok(())
+    show_main(&app).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -545,7 +570,13 @@ fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                     eprintln!("Could not show Lori: {error}");
                 }
             }
-            "quit-player" => app.exit(0),
+            "quit-player" => {
+                // The player pauses and commits its last ledger checkpoint before
+                // acknowledging this request through quit_app.
+                if let Err(error) = app.emit_to("main", "lori-quit-requested", ()) {
+                    eprintln!("Could not request Lori exit: {error}");
+                }
+            }
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
@@ -640,6 +671,83 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn bundled_decoder_handles_unicode_paths_and_original_fingerprints() {
+        let directory = std::env::temp_dir().join(format!("Lori 音频 test {}", std::process::id()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let source = directory.join("月光 sample.flac");
+        let decoded = directory.join("decoded.wav");
+        let generated = audio_command("ffmpeg")
+            .args([
+                "-nostdin",
+                "-v",
+                "error",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=440:duration=1",
+            ])
+            .arg(&source)
+            .output()
+            .unwrap();
+        assert!(
+            generated.status.success(),
+            "{}",
+            String::from_utf8_lossy(&generated.stderr)
+        );
+        let original = md5::compute(std::fs::read(&source).unwrap());
+        // canonicalize produces a Windows extended-length path (\\?\ prefix).
+        let canonical = source.canonicalize().unwrap();
+        let track = read_track(&canonical, "flac").unwrap();
+        assert!(track.duration > 0.9);
+        let probe = audio_command("ffprobe")
+            .args([
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+            ])
+            .arg(&canonical)
+            .output()
+            .unwrap();
+        assert!(
+            probe.status.success(),
+            "{}",
+            String::from_utf8_lossy(&probe.stderr)
+        );
+        let output = audio_command("ffmpeg")
+            .args(["-nostdin", "-v", "error", "-y", "-i"])
+            .arg(&canonical)
+            .args([
+                "-map",
+                "0:a:0",
+                "-vn",
+                "-ac",
+                "2",
+                "-ar",
+                "44100",
+                "-c:a",
+                "pcm_s16le",
+                "-f",
+                "wav",
+            ])
+            .arg(&decoded)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(std::fs::metadata(decoded).unwrap().len() > 176_400);
+        assert_eq!(original, md5::compute(std::fs::read(source).unwrap()));
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
     #[test]
     fn restores_valid_positions_including_negative_monitor_coordinates() {
         assert_eq!(parse_lyrics_position("-1200 300"), Some((-1200, 300)));

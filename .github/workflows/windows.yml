@@ -1,0 +1,71 @@
+name: Windows build
+
+on:
+  push:
+    branches: [main, 'windows/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - run: npm ci
+      - name: Prepare private FFmpeg distribution
+        shell: pwsh
+        run: ./scripts/prepare-windows.ps1
+      - run: npm test
+      - run: npx playwright install chromium
+      - run: npm run test:browser
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+      - name: Build frontend for Rust context generation
+        run: npm run build
+      - run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+      - name: Build Windows installer
+        run: npm run tauri -- build --target x86_64-pc-windows-msvc --bundles nsis
+      - name: Verify installed application
+        shell: pwsh
+        run: ./scripts/test-windows-install.ps1
+      - name: Upload installer and checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: Lori-Player-windows-x64-${{ github.sha }}
+          path: |
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload smoke test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-smoke-evidence
+          path: .qa/windows/
+          if-no-files-found: ignore
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-browser-failures
+          path: test-results/
+          if-no-files-found: ignore

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Music2,
+  BarChart3,
   Search,
   Plus,
   FolderOpen,
@@ -41,6 +42,9 @@ import {
   type Track,
 } from "./library";
 import { imageHue, type ThemeMode } from "./theme";
+import { fingerprint } from "./fingerprint";
+import { useListeningLedger } from "./use-listening-ledger";
+import { Statistics } from "./Statistics";
 import "./style.css";
 const native = isTauri();
 type LyricState = {
@@ -309,6 +313,8 @@ function App() {
   const [overlayEditable, setOverlayEditable] = useState(false);
   const [overlayBusy, setOverlayBusy] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
+  const [statisticsOpen, setStatisticsOpen] = useState(false);
+  const [importMenu, setImportMenu] = useState(false);
   const wallpaperInput = useRef<HTMLInputElement>(null);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [ready, setReady] = useState(false);
@@ -334,6 +340,24 @@ function App() {
   const [queue, setQueue] = useState(false);
   const [notice, setNotice] = useState("");
   const audio = useRef<HTMLAudioElement>(null);
+  const ledger = useListeningLedger(audio);
+  const quitting = useRef(false);
+  const quitRef = useRef(async () => {});
+  quitRef.current = async () => {
+    if (quitting.current) return;
+    quitting.current = true;
+    audio.current?.pause();
+    ledger.stop();
+    try {
+      await ledger.checkpoint();
+      await invoke("quit_app");
+    } catch (error) {
+      setNotice(`听歌记录保存失败，已取消退出，请重试：${String(error)}`);
+      if (native) void invoke("focus_main").catch(() => {});
+    } finally {
+      quitting.current = false;
+    }
+  };
   const files = useRef<HTMLInputElement>(null);
   const folders = useRef<HTMLInputElement>(null);
   const lrcInput = useRef<HTMLInputElement>(null);
@@ -429,6 +453,8 @@ function App() {
     setDuration(current.duration);
     void (async () => {
       try {
+        const md5 = await fingerprint(current);
+        if (cancelled) return;
         const blob =
           native && current.path
             ? new Blob(
@@ -442,6 +468,16 @@ function App() {
             : current.file;
         if (cancelled) return;
         if (!blob) throw new Error("文件不可用，请重新导入");
+        ledger.setSong({
+          songMd5: md5,
+          fileName: (
+            current.file?.name ??
+            current.path?.split(/[\\/]/).pop() ??
+            current.title
+          ).slice(0, 4096),
+          title: current.title.slice(0, 4096),
+          artist: current.artist.slice(0, 4096),
+        });
         url = URL.createObjectURL(blob);
         el.src = url;
         el.load();
@@ -456,6 +492,7 @@ function App() {
     })();
     return () => {
       cancelled = true;
+      ledger.setSong();
       el.pause();
       el.removeAttribute("src");
       el.load();
@@ -520,6 +557,7 @@ function App() {
     const offs: (() => void)[] = [];
     void Promise.all([
       listen("lyric-ready", () => void emit("lyric-state", stateRef.current)),
+      listen("lori-quit-requested", () => void quitRef.current()),
     ]).then((list) => {
       if (disposed) list.forEach((f) => f());
       else offs.push(...list);
@@ -585,6 +623,7 @@ function App() {
   }
   function seek(value: number) {
     if (audio.current && current) {
+      ledger.stop();
       audio.current.currentTime = value;
       setTime(value);
     }
@@ -914,20 +953,51 @@ function App() {
         </div>
         <footer className="playlist-footer">
           <button
-            title="导入音乐"
-            disabled={busy || !ready}
-            onClick={() => void importNative(false)}
+            title="听歌统计"
+            onClick={() => {
+              setImportMenu(false);
+              setStatisticsOpen(true);
+            }}
           >
-            <Plus size={16} />
-            <span>{busy ? "正在导入…" : "添加音乐"}</span>
+            <BarChart3 size={16} />
+            <span>听歌统计</span>
           </button>
           <button
-            title="导入文件夹"
+            title="导入音乐"
+            aria-expanded={importMenu}
             disabled={busy || !ready}
-            onClick={() => void importNative(true)}
+            onClick={() => setImportMenu(!importMenu)}
           >
             <FolderOpen size={17} />
           </button>
+          {importMenu && (
+            <div
+              className="import-menu"
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setImportMenu(false);
+              }}
+            >
+              <button
+                disabled={busy || !ready}
+                onClick={() => {
+                  setImportMenu(false);
+                  void importNative(false);
+                }}
+              >
+                选择音乐文件
+              </button>
+              <button
+                title="导入文件夹"
+                disabled={busy || !ready}
+                onClick={() => {
+                  setImportMenu(false);
+                  void importNative(true);
+                }}
+              >
+                选择音乐文件夹
+              </button>
+            </div>
+          )}
         </footer>
       </aside>
       <main className="listening-room">
@@ -1324,6 +1394,22 @@ function App() {
           </div>
         )}
       </main>
+      {statisticsOpen && (
+        <Statistics
+          onClose={() => setStatisticsOpen(false)}
+          checkpoint={ledger.checkpoint}
+          recordingError={ledger.error}
+        />
+      )}
+      {ledger.error && !statisticsOpen && (
+        <div
+          className="ledger-warning"
+          role="alert"
+          onClick={() => setStatisticsOpen(true)}
+        >
+          {ledger.error}
+        </div>
+      )}
       {notice && (
         <div className="toast" role="status">
           <span>{notice}</span>

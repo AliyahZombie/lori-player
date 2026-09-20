@@ -233,3 +233,131 @@ test("indexed history pagination and settled-prefix cache invalidation", async (
   expect(new Set(result.ids).size).toBe(122);
   expect(result.clipped).toBe(1000);
 });
+
+test("tray hiding keeps recording; exit commits the final checkpoint and refuses to discard failed writes", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const state = window as any;
+    state.isTauri = true;
+    state.exitSnapshots = [];
+    state.nativeEvents = {};
+    let id = 0;
+    const callbacks = new Map<number, Function>();
+    state.__TAURI_INTERNALS__ = {
+      metadata: {
+        currentWindow: { label: "main" },
+        currentWebview: { label: "main" },
+      },
+      transformCallback: (callback: Function) => {
+        callbacks.set(++id, callback);
+        return id;
+      },
+      invoke: async (command: string, args: any) => {
+        if (command === "plugin:event|listen") {
+          state.nativeEvents[args.event] = callbacks.get(args.handler);
+          return args.handler;
+        }
+        if (command === "hide_main") state.wasHidden = true;
+        if (command === "quit_app") {
+          const { queryStats } = await import("/src/ledger-db.ts");
+          const stats = await queryStats(0, Date.now() + 1000);
+          state.exitSnapshots.push({
+            total: stats.milliseconds,
+            paused: document.querySelector("audio")!.paused,
+          });
+        }
+      },
+    };
+  });
+  await page.goto("/");
+  await expect(page.getByTitle("导入音乐", { exact: true })).toBeEnabled();
+  await page
+    .locator('input[accept="audio/*,.lrc"]')
+    .setInputFiles({
+      name: "后台计时.wav",
+      mimeType: "audio/wav",
+      buffer: wav(40),
+    });
+  await expect(page.locator(".song")).toHaveCount(1);
+  await page.evaluate(() => {
+    document.querySelector("audio")!.muted = true;
+  });
+  await page.locator(".song-main").click();
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.querySelector("audio")!.currentTime),
+    )
+    .toBeGreaterThan(1);
+  await page.getByTitle("关闭窗口（保留后台播放）").click();
+  expect(await page.evaluate(() => (window as any).wasHidden)).toBe(true);
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.querySelector("audio")!.currentTime),
+    )
+    .toBeGreaterThan(2);
+  const beforeExit = await page.evaluate(
+    () => document.querySelector("audio")!.currentTime * 1000,
+  );
+  await page.evaluate(() =>
+    (window as any).nativeEvents["lori-quit-requested"]({
+      event: "lori-quit-requested",
+      payload: null,
+    }),
+  );
+  await expect
+    .poll(() => page.evaluate(() => (window as any).exitSnapshots.length))
+    .toBe(1);
+  const saved = await page.evaluate(() => (window as any).exitSnapshots[0]);
+  expect(saved.paused).toBe(true);
+  expect(saved.total).toBeGreaterThan(beforeExit - 300);
+  expect(saved.total).toBeLessThan(beforeExit + 500);
+
+  await page.evaluate(() => {
+    const original = IDBDatabase.prototype.transaction;
+    (window as any).restoreWrites = () => {
+      IDBDatabase.prototype.transaction = original;
+    };
+    IDBDatabase.prototype.transaction = function (
+      stores: string | string[],
+      mode?: IDBTransactionMode,
+      options?: IDBTransactionOptions,
+    ) {
+      if (this.name === "lori-listening-ledger" && mode === "readwrite")
+        throw new DOMException("Simulated disk full", "QuotaExceededError");
+      return original.call(this, stores, mode, options);
+    };
+  });
+  await page.getByTitle("播放", { exact: true }).click();
+  const resumeAt = await page.evaluate(
+    () => document.querySelector("audio")!.currentTime,
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.querySelector("audio")!.currentTime),
+    )
+    .toBeGreaterThan(resumeAt + 1);
+  await page.evaluate(() =>
+    (window as any).nativeEvents["lori-quit-requested"]({
+      event: "lori-quit-requested",
+      payload: null,
+    }),
+  );
+  await expect(page.getByRole("status")).toContainText("已取消退出");
+  expect(await page.evaluate(() => (window as any).exitSnapshots.length)).toBe(
+    1,
+  );
+  await page.evaluate(() => {
+    (window as any).restoreWrites();
+    (window as any).nativeEvents["lori-quit-requested"]({
+      event: "lori-quit-requested",
+      payload: null,
+    });
+  });
+  await expect
+    .poll(() => page.evaluate(() => (window as any).exitSnapshots.length))
+    .toBe(2);
+  expect(
+    await page.evaluate(() => (window as any).exitSnapshots[1].total),
+  ).toBeGreaterThan(saved.total + 900);
+});

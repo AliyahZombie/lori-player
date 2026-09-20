@@ -48,7 +48,7 @@
 - Node.js 18+ 与 npm
 - Rust 工具链（stable）
 - Tauri 2 对应平台依赖，Linux 上为 GTK 3 和 WebKitGTK 4.1
-- **FFmpeg**（`ffmpeg` 与 `ffprobe` 在 `PATH` 中）—— 仅桌面版需要，用于音频解码
+- **FFmpeg** —— Windows 安装包已内置；Linux/macOS 需将 `ffmpeg` 与 `ffprobe` 放入 `PATH`，用于桌面音频解码
 
 ## 快速开始
 
@@ -130,7 +130,9 @@ LORI_SAMPLE_DIR=/path/to/audio npm run test:browser
 npm run tauri build
 ```
 
-Linux 打包目标为 deb / AppImage，deb 声明 FFmpeg 依赖。其他平台需要在对应系统上构建，并安装 FFmpeg。想把构建好的二进制装到当前账户使用：
+Windows x64 通过 [GitHub Actions](https://github.com/AliyahZombie/lori-player/actions/workflows/windows.yml) 构建 NSIS 安装包，内置 FFmpeg，并在缺少 WebView2 时联网安装。下载成功运行的 `Lori-Player-windows-x64-<commit>` 构建产物即可；无需自行配置 Windows 开发环境。当前为未签名 CI 构建，验证范围和细节见 [Windows 构建说明](docs/windows.md)。
+
+Linux 打包目标为 deb / AppImage，deb 声明 FFmpeg 依赖。想把构建好的 Linux 二进制装到当前账户使用：
 
 ```bash
 install -Dm755 src-tauri/target/release/lori-player ~/.local/bin/lori-player

@@ -48,7 +48,7 @@ Export always includes the full ledger. Import merges atomically, keeps the long
 - Node.js 18+ and npm
 - A Rust toolchain (stable)
 - Tauri 2 platform prerequisites — on Linux that means GTK 3 and WebKitGTK 4.1
-- **FFmpeg** (`ffmpeg` and `ffprobe` on `PATH`) — desktop builds only, used for audio decoding
+- **FFmpeg** — bundled in the Windows installer; Linux/macOS need `ffmpeg` and `ffprobe` on `PATH` for desktop audio decoding
 
 ## Getting started
 
@@ -130,7 +130,7 @@ Statistics browser tests generate their own WAV and exercise real playback, MD5 
 npm run tauri build
 ```
 
-On Linux the bundle targets are deb and AppImage, and the deb declares a dependency on FFmpeg. Other platforms must be built on their own OS with FFmpeg installed. To run the built binary from your own account, install it and add a launcher, for example:
+On Linux the bundle targets are deb and AppImage, and the deb declares a dependency on FFmpeg. Windows installers are built in GitHub Actions with FFmpeg included (see below). To run the built Linux binary from your own account, install it and add a launcher, for example:
 
 ```bash
 install -Dm755 src-tauri/target/release/lori-player ~/.local/bin/lori-player
@@ -145,3 +145,7 @@ install -Dm755 src-tauri/target/release/lori-player ~/.local/bin/lori-player
 Built on [Tauri](https://tauri.app/), [React](https://react.dev/), [Vite](https://vite.dev/), [lucide](https://lucide.dev/), [lofty](https://crates.io/crates/lofty), [music-metadata](https://www.npmjs.com/package/music-metadata), [walkdir](https://crates.io/crates/walkdir) and [FFmpeg](https://ffmpeg.org/). Thank you to the maintainers of all of them.
 
 在桌面歌词菜单的「调整位置」模式中，可以实时调整文字大小（18–56 px）和不透明度（20%–100%），设置自动保存。窗口高度随字号适配，保持紧凑；「恢复默认」返回 34 px、100% 不透明度。
+
+## Windows builds
+
+Windows x64 NSIS installers are built by [GitHub Actions](https://github.com/AliyahZombie/lori-player/actions/workflows/windows.yml). Download the `Lori-Player-windows-x64-<commit>` artifact from a successful run. FFmpeg is bundled; WebView2 is installed online if missing. No local Windows build environment is required. These are unsigned CI builds. See [Windows build and verification notes](docs/windows.md) for details and remaining desktop acceptance checks.
