@@ -31,6 +31,33 @@ try {
     Start-Sleep -Seconds 3
     $second = Start-Process $exe -PassThru
     if (!$second.WaitForExit(15000)) { throw 'Second instance did not exit.' }
+    $application.Refresh()
+    if ($application.MainWindowTitle -ne 'Lori Player') {
+        throw "Unexpected main window: $($application.MainWindowTitle)"
+    }
+    Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class LoriSmokeWindow {
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hwnd, int command);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
+    [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
+}
+'@
+    [LoriSmokeWindow]::ShowWindow($application.MainWindowHandle, 9) | Out-Null
+    [LoriSmokeWindow]::SetWindowPos($application.MainWindowHandle, [IntPtr](-1), 0, 0, 0, 0, 0x43) | Out-Null
+    [LoriSmokeWindow]::SetForegroundWindow($application.MainWindowHandle) | Out-Null
+    Add-Type -AssemblyName UIAutomationClient
+    Add-Type -AssemblyName UIAutomationTypes
+    $window = [Windows.Automation.AutomationElement]::FromHandle($application.MainWindowHandle)
+    $searchCondition = [Windows.Automation.PropertyCondition]::new(
+        [Windows.Automation.AutomationElement]::NameProperty, '搜索音乐')
+    $deadline = (Get-Date).AddSeconds(30)
+    do {
+        Start-Sleep -Milliseconds 500
+        $search = $window.FindFirst([Windows.Automation.TreeScope]::Descendants, $searchCondition)
+    } while ($null -eq $search -and (Get-Date) -lt $deadline)
+    if ($null -eq $search) { throw 'WebView did not render the music search control.' }
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
     $screen = [Windows.Forms.SystemInformation]::VirtualScreen
@@ -43,7 +70,7 @@ try {
         $graphics.Dispose()
         $bitmap.Dispose()
     }
-    "Installed: $exe`nPID: $($application.Id)`nWindow: $($application.MainWindowHandle)`nSHA256: $hash`nSingle instance: passed" |
+    "Installed: $exe`nPID: $($application.Id)`nWindow: $($application.MainWindowHandle)`nSHA256: $hash`nSingle instance: passed`nRendered music search: passed" |
         Set-Content (Join-Path $evidence 'smoke.txt')
 } finally {
     # CI-only disposable process: the app intentionally hides on window close.
