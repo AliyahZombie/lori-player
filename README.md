@@ -122,3 +122,5 @@ install -Dm755 src-tauri/target/release/lori-player ~/.local/bin/lori-player
 ## Credits
 
 Built on [Tauri](https://tauri.app/), [React](https://react.dev/), [Vite](https://vite.dev/), [lucide](https://lucide.dev/), [lofty](https://crates.io/crates/lofty), [music-metadata](https://www.npmjs.com/package/music-metadata), [walkdir](https://crates.io/crates/walkdir) and [FFmpeg](https://ffmpeg.org/). Thank you to the maintainers of all of them.
+
+在桌面歌词菜单的「调整位置」模式中，可以实时调整文字大小（18–56 px）和不透明度（20%–100%），设置自动保存。窗口高度随字号适配，保持紧凑；「恢复默认」返回 34 px、100% 不透明度。

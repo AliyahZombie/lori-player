@@ -270,7 +270,7 @@ fn position_is_visible(
         let (mx, my) = (i64::from(mx), i64::from(my));
         let width = (x + i64::from(size.0)).min(mx + i64::from(mw)) - x.max(mx);
         let height = (y + i64::from(size.1)).min(my + i64::from(mh)) - y.max(my);
-        width >= 120 && height >= 50
+        width >= 120 && height >= 30
     })
 }
 
@@ -317,9 +317,36 @@ fn remember_lyrics_position(
     Ok(())
 }
 
+fn lyrics_height(font_size: f64) -> f64 {
+    (font_size.clamp(18.0, 56.0) * 1.5 + 6.0).ceil().max(36.0)
+}
+
 #[tauri::command]
-async fn open_lyrics(app: tauri::AppHandle, editable: Option<bool>) -> Result<(), String> {
+fn resize_lyrics(app: tauri::AppHandle, font_size: f64) -> Result<(), String> {
+    if !font_size.is_finite() {
+        return Err("Invalid font size".into());
+    }
+    if let Some(window) = app.get_webview_window("lyrics") {
+        let width = window
+            .inner_size()
+            .map_err(|e| e.to_string())?
+            .to_logical::<f64>(window.scale_factor().map_err(|e| e.to_string())?)
+            .width;
+        window
+            .set_size(tauri::LogicalSize::new(width, lyrics_height(font_size)))
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn open_lyrics(
+    app: tauri::AppHandle,
+    editable: Option<bool>,
+    font_size: Option<f64>,
+) -> Result<(), String> {
     let ignore_cursor = !editable.unwrap_or(false);
+    let height = lyrics_height(font_size.filter(|s| s.is_finite()).unwrap_or(34.0));
     if let Some(window) = app.get_webview_window("lyrics") {
         window
             .set_ignore_cursor_events(ignore_cursor)
@@ -337,20 +364,52 @@ async fn open_lyrics(app: tauri::AppHandle, editable: Option<bool>) -> Result<()
     .shadow(false)
     .visible_on_all_workspaces(true)
     .focused(false)
-    .inner_size(760.0, 100.0)
-    .min_inner_size(360.0, 90.0)
+    .focusable(false)
+    .inner_size(760.0, height)
+    .min_inner_size(360.0, 36.0)
+    .max_inner_size(2400.0, 90.0)
+    .visible(false)
     .decorations(false)
     .transparent(true)
     .always_on_top(true)
     .skip_taskbar(true)
     .build()
     .map_err(|e| e.to_string())?;
+    // Configure the X11 window before mapping: a dock overlay has no titlebar
+    // and is not constrained by GNOME's normal-window work-area placement.
+    let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+    let overlay = window.clone();
+    app.run_on_main_thread(move || {
+        #[cfg(target_os = "linux")]
+        {
+            use gtk::prelude::*;
+            if let Ok(gtk_window) = overlay.gtk_window() {
+                gtk_window.set_type_hint(gtk::gdk::WindowTypeHint::Dock);
+                gtk_window.set_decorated(false);
+                gtk_window.set_accept_focus(false);
+                gtk_window.show_all();
+            }
+        }
+        let result = overlay.show().map_err(|e| e.to_string());
+        let _ = ready_tx.send(result);
+    })
+    .map_err(|e| e.to_string())?;
+    ready_rx.recv().map_err(|e| e.to_string())??;
     remember_lyrics_position(&app, &window)?;
     window
         .set_ignore_cursor_events(ignore_cursor)
         .map_err(|e| e.to_string())?;
     window.show().map_err(|e| e.to_string())
 }
+#[tauri::command]
+fn focus_main(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        window.set_focusable(true).map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 #[tauri::command]
 fn close_lyrics(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("lyrics") {
@@ -375,11 +434,33 @@ pub fn run() {
     }
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .on_window_event(|window, event| {
+            // The lyric overlay must not keep the app alive after the main
+            // window is closed through the window manager (e.g. Alt+F4).
+            if window.label() == "main"
+                && matches!(
+                    event,
+                    tauri::WindowEvent::CloseRequested { .. } | tauri::WindowEvent::Destroyed
+                )
+            {
+                window.app_handle().exit(0);
+            }
+        })
         .setup(|app| {
             if let (Some(window), Some(icon)) =
                 (app.get_webview_window("main"), app.default_window_icon())
             {
                 window.set_icon(icon.clone())?;
+                window.set_focusable(true)?;
+                #[cfg(target_os = "linux")]
+                {
+                    use gtk::prelude::*;
+                    let gtk_window = window.gtk_window()?;
+                    gtk_window.set_type_hint(gtk::gdk::WindowTypeHint::Normal);
+                    gtk_window.set_accept_focus(true);
+                    gtk_window.set_focus_on_map(true);
+                }
+                window.set_focus()?;
             }
             Ok(())
         })
@@ -388,6 +469,8 @@ pub fn run() {
             load_audio,
             open_lyrics,
             close_lyrics,
+            focus_main,
+            resize_lyrics,
             quit_app
         ])
         .run(tauri::generate_context!())

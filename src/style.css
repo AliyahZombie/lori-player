@@ -751,17 +751,18 @@ input[type="range"]::-moz-range-thumb {
   border: 0;
   box-shadow: none;
   height: 100vh;
-  padding: 8px 20px;
+  padding: 2px 16px;
   overflow: hidden;
   user-select: none;
 }
 .float-line {
+  touch-action: none;
   position: relative;
   height: 100%;
   overflow: hidden;
   cursor: grab;
   font-family: "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
-  font-size: clamp(23px, 4.4vw, 34px);
+  font-size: var(--lyric-font-size, 34px);
   font-weight: 700;
   letter-spacing: 0.6px;
   line-height: 1.5;
@@ -1164,4 +1165,41 @@ body,
 }
 #root img {
   -webkit-user-drag: none;
+}
+
+.overlay-appearance {
+  padding: 10px 8px;
+  border-top: 1px solid #ffffff12;
+  border-bottom: 1px solid #ffffff12;
+  margin: 5px 0;
+}
+.overlay-appearance label {
+  display: block;
+  margin-bottom: 16px;
+}
+.overlay-appearance label > span {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #b6c0d0;
+}
+.overlay-appearance b {
+  font-size: 10px;
+  font-weight: 400;
+  color: #8795aa;
+}
+.overlay-appearance input {
+  display: block;
+  width: 100%;
+  margin: 12px 0 0;
+}
+.overlay-appearance > button {
+  font-size: 10px;
+  color: #98b8e3;
+  padding: 0;
+}
+.overlay-menu {
+  max-height: calc(100vh - 130px);
+  overflow-y: auto;
+  scrollbar-width: thin;
 }

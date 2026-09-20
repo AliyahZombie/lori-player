@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
+import { PhysicalPosition } from "@tauri-apps/api/dpi";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import { get, set } from "idb-keyval";
@@ -50,6 +51,8 @@ type LyricState = {
   playing: boolean;
   hue: number;
   neon: boolean;
+  fontSize: number;
+  opacity: number;
 };
 const initialLyric: LyricState = {
   title: "Lori Player",
@@ -59,6 +62,8 @@ const initialLyric: LyricState = {
   playing: false,
   hue: 215,
   neon: true,
+  fontSize: 34,
+  opacity: 1,
 };
 function Cover({
   track,
@@ -126,6 +131,39 @@ function SlidingLyric({ line }: { line: string }) {
   );
 }
 function FloatingLyrics() {
+  const drag = useRef<{
+    pointer: number;
+    startX: number;
+    startY: number;
+    x: number;
+    y: number;
+    latestX: number;
+    latestY: number;
+    scale: number;
+    ready: boolean;
+    busy: boolean;
+  } | null>(null);
+  async function moveOverlay() {
+    const movement = drag.current;
+    if (!movement || !movement.ready || movement.busy) return;
+    movement.busy = true;
+    try {
+      do {
+        const x = movement.latestX,
+          y = movement.latestY;
+        await getCurrentWindow().setPosition(
+          new PhysicalPosition(
+            Math.round(movement.x + (x - movement.startX) * movement.scale),
+            Math.round(movement.y + (y - movement.startY) * movement.scale),
+          ),
+        );
+        if (x === movement.latestX && y === movement.latestY) break;
+      } while (drag.current === movement);
+    } finally {
+      movement.busy = false;
+    }
+  }
+
   const [state, update] = useState(initialLyric);
   useEffect(() => {
     document.documentElement.style.setProperty(
@@ -150,12 +188,71 @@ function FloatingLyrics() {
     };
   }, []);
   return (
-    <div className={`floating ${state.playing ? "is-playing" : ""}`}>
+    <div
+      className={`floating ${state.playing ? "is-playing" : ""}`}
+      style={
+        {
+          "--lyric-font-size": `${state.fontSize ?? 34}px`,
+          opacity: state.opacity ?? 1,
+        } as React.CSSProperties
+      }
+    >
       <div
         className="float-line"
         aria-label={state.line}
-        onPointerDown={(event) => {
-          if (event.button === 0) void getCurrentWindow().startDragging();
+        onPointerDown={async (event) => {
+          if (event.button !== 0) return;
+          event.preventDefault();
+          event.currentTarget.setPointerCapture(event.pointerId);
+          const movement = {
+            pointer: event.pointerId,
+            startX: event.screenX,
+            startY: event.screenY,
+            latestX: event.screenX,
+            latestY: event.screenY,
+            x: 0,
+            y: 0,
+            scale: 1,
+            ready: false,
+            busy: false,
+          };
+          drag.current = movement;
+          try {
+            const window = getCurrentWindow();
+            const [position, scale] = await Promise.all([
+              window.outerPosition(),
+              window.scaleFactor(),
+            ]);
+            if (drag.current !== movement) return;
+            Object.assign(movement, {
+              x: position.x,
+              y: position.y,
+              scale,
+              ready: true,
+            });
+            await moveOverlay();
+          } catch {
+            drag.current = null;
+          }
+        }}
+        onPointerMove={(event) => {
+          if (drag.current?.pointer !== event.pointerId) return;
+          drag.current.latestX = event.screenX;
+          drag.current.latestY = event.screenY;
+          void moveOverlay().catch(() => {
+            drag.current = null;
+          });
+        }}
+        onPointerUp={(event) => {
+          if (drag.current?.pointer === event.pointerId) drag.current = null;
+          if (event.currentTarget.hasPointerCapture(event.pointerId))
+            event.currentTarget.releasePointerCapture(event.pointerId);
+        }}
+        onPointerCancel={() => {
+          drag.current = null;
+        }}
+        onLostPointerCapture={() => {
+          drag.current = null;
         }}
       >
         <SlidingLyric line={state.line} />
@@ -189,6 +286,26 @@ function App() {
     Number(localStorage.getItem("lori-wallpaper-hue") || 215),
   );
   const [overlayMenu, setOverlayMenu] = useState(false);
+  const [lyricFontSize, setLyricFontSize] = useState(() =>
+    Math.max(
+      18,
+      Math.min(56, Number(localStorage.getItem("lori-lyric-size")) || 34),
+    ),
+  );
+  const [lyricOpacity, setLyricOpacity] = useState(() =>
+    Math.max(
+      0.2,
+      Math.min(1, Number(localStorage.getItem("lori-lyric-opacity")) || 1),
+    ),
+  );
+  useEffect(() => {
+    localStorage.setItem("lori-lyric-size", String(lyricFontSize));
+    if (native)
+      void invoke("resize_lyrics", { fontSize: lyricFontSize }).catch(() => {});
+  }, [lyricFontSize]);
+  useEffect(() => {
+    localStorage.setItem("lori-lyric-opacity", String(lyricOpacity));
+  }, [lyricOpacity]);
   const [overlayEditable, setOverlayEditable] = useState(false);
   const [overlayBusy, setOverlayBusy] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
@@ -369,6 +486,8 @@ function App() {
     playing,
     hue: themeHue,
     neon,
+    fontSize: lyricFontSize,
+    opacity: lyricOpacity,
   };
   const stateRef = useRef(lyricState);
   stateRef.current = lyricState;
@@ -378,6 +497,8 @@ function App() {
     lyricState.line,
     lyricState.next,
     lyricState.title,
+    lyricFontSize,
+    lyricOpacity,
     playing,
     themeHue,
     neon,
@@ -567,7 +688,8 @@ function App() {
     }
     try {
       setOverlayBusy(true);
-      await invoke("open_lyrics", { editable });
+      await invoke("open_lyrics", { editable, fontSize: lyricFontSize });
+      await invoke("focus_main");
       setOverlayEditable(editable);
       setOverlayMenu(true);
     } catch (e) {
@@ -597,6 +719,10 @@ function App() {
   return (
     <div
       className={`app ${playing ? "is-playing" : ""}`}
+      onPointerDownCapture={() => {
+        if (native && !document.hasFocus())
+          void invoke("focus_main").catch(() => {});
+      }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault();
@@ -1027,6 +1153,50 @@ function App() {
                     </span>
                     {overlayEditable && <Check size={14} />}
                   </button>
+                  {overlayEditable && (
+                    <div className="overlay-appearance">
+                      <label>
+                        <span>
+                          文字大小<b>{lyricFontSize} px</b>
+                        </span>
+                        <input
+                          aria-label="桌面歌词文字大小"
+                          type="range"
+                          min="18"
+                          max="56"
+                          step="1"
+                          value={lyricFontSize}
+                          onChange={(e) =>
+                            setLyricFontSize(Number(e.target.value))
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>
+                          不透明度<b>{Math.round(lyricOpacity * 100)}%</b>
+                        </span>
+                        <input
+                          aria-label="桌面歌词不透明度"
+                          type="range"
+                          min="0.2"
+                          max="1"
+                          step="0.05"
+                          value={lyricOpacity}
+                          onChange={(e) =>
+                            setLyricOpacity(Number(e.target.value))
+                          }
+                        />
+                      </label>
+                      <button
+                        onClick={() => {
+                          setLyricFontSize(34);
+                          setLyricOpacity(1);
+                        }}
+                      >
+                        恢复默认
+                      </button>
+                    </div>
+                  )}
                   <button
                     disabled={overlayBusy}
                     onClick={async () => {

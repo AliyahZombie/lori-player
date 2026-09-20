@@ -28,21 +28,38 @@ test("desktop lyrics default to click-through and can be unlocked and closed fro
   await expect(page.getByRole("button", { name: "鼠标穿透" })).toBeVisible();
   expect(
     await page.evaluate(() => (window as any).overlayCalls.at(-1)),
-  ).toEqual({ command: "open_lyrics", args: { editable: false } });
+  ).toEqual({
+    command: "open_lyrics",
+    args: { editable: false, fontSize: 34 },
+  });
   await page.getByRole("button", { name: "调整位置" }).click();
   await expect(page.getByRole("button", { name: "调整位置" })).toHaveClass(
     "active",
   );
   expect(
     await page.evaluate(() => (window as any).overlayCalls.at(-1)),
-  ).toEqual({ command: "open_lyrics", args: { editable: true } });
+  ).toEqual({ command: "open_lyrics", args: { editable: true, fontSize: 34 } });
+  await page.getByLabel("桌面歌词文字大小").fill("48");
+  await page.getByLabel("桌面歌词不透明度").fill("0.55");
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("lori-lyric-size")))
+    .toBe("48");
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("lori-lyric-opacity")))
+    .toBe("0.55");
+  await page.getByRole("button", { name: "恢复默认", exact: true }).click();
+  await expect(page.getByLabel("桌面歌词文字大小")).toHaveValue("34");
+  await expect(page.getByLabel("桌面歌词不透明度")).toHaveValue("1");
   await page.getByRole("button", { name: "鼠标穿透" }).click();
   await expect(page.getByRole("button", { name: "鼠标穿透" })).toHaveClass(
     "active",
   );
   expect(
     await page.evaluate(() => (window as any).overlayCalls.at(-1)),
-  ).toEqual({ command: "open_lyrics", args: { editable: false } });
+  ).toEqual({
+    command: "open_lyrics",
+    args: { editable: false, fontSize: 34 },
+  });
   await page.getByRole("button", { name: "关闭桌面歌词", exact: true }).click();
   await expect(page.locator(".overlay-menu")).toHaveCount(0);
   expect(

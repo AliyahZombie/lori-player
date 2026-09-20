@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 test("transparent lyrics shimmer crisply and slide between lines without stale layers", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 760, height: 100 });
+  await page.setViewportSize({ width: 760, height: 58 });
   await page.addInitScript(() => {
     let nextId = 0;
     const callbacks = new Map<number, Function>();
@@ -30,6 +30,8 @@ test("transparent lyrics shimmer crisply and slide between lines without stale l
           playing,
           hue: 215,
           neon: true,
+          fontSize: 28,
+          opacity: 0.6,
           title: "Test",
           artist: "",
           next: "",
@@ -49,6 +51,8 @@ test("transparent lyrics shimmer crisply and slide between lines without stale l
     "燃烧在 黑～夜～里～",
   );
   await expect(page.locator(".float-outgoing")).toHaveCount(0);
+  await expect(page.locator(".float-line")).toHaveCSS("font-size", "28px");
+  await expect(page.locator(".floating")).toHaveCSS("opacity", "0.6");
   await expect(page.locator(".float-text")).toHaveCSS("text-shadow", "none");
   await expect(page.locator(".float-text")).toHaveCSS(
     "animation-play-state",
