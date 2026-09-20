@@ -57,7 +57,6 @@ public static class LoriSmokeWindow {
         Start-Sleep -Milliseconds 500
         $search = $window.FindFirst([Windows.Automation.TreeScope]::Descendants, $searchCondition)
     } while ($null -eq $search -and (Get-Date) -lt $deadline)
-    if ($null -eq $search) { throw 'WebView did not render the music search control.' }
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
     $screen = [Windows.Forms.SystemInformation]::VirtualScreen
@@ -70,6 +69,7 @@ public static class LoriSmokeWindow {
         $graphics.Dispose()
         $bitmap.Dispose()
     }
+    if ($null -eq $search) { throw 'WebView did not render the music search control.' }
     "Installed: $exe`nPID: $($application.Id)`nWindow: $($application.MainWindowHandle)`nSHA256: $hash`nSingle instance: passed`nRendered music search: passed" |
         Set-Content (Join-Path $evidence 'smoke.txt')
 } finally {
