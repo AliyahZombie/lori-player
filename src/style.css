@@ -257,6 +257,102 @@ button.active {
   font-size: 10px;
   color: #626977;
 }
+.playlist-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 2px;
+  animation: skeleton-fade-in 0.24s ease both;
+  animation-delay: 140ms;
+}
+.song-skeleton {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px;
+  min-height: 64px;
+  animation: skeleton-row-in 0.34s ease both;
+  animation-delay: var(--row-delay, 0ms);
+}
+.skeleton-cover,
+.skeleton-text i {
+  position: relative;
+  overflow: hidden;
+  background: #ffffff0a;
+}
+.skeleton-cover {
+  width: 44px;
+  height: 44px;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+.skeleton-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding-right: 22px;
+}
+.skeleton-text i {
+  height: 9px;
+  border-radius: 5px;
+}
+.skeleton-text i:first-child {
+  width: 58%;
+}
+.skeleton-text i:last-child {
+  width: 34%;
+}
+.skeleton-cover:after,
+.skeleton-text i:after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    100deg,
+    transparent 18%,
+    hsl(var(--theme-hue) 90% 72% / 0.16) 50%,
+    transparent 82%
+  );
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  animation-delay: var(--row-delay, 0ms);
+}
+.playlist-loading-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 15px 0 6px;
+  font-size: 11px;
+  color: #838a98;
+}
+.loading-ring {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 2px solid #ffffff1c;
+  border-top-color: var(--accent);
+  animation: loading-spin 0.9s linear infinite;
+}
+@keyframes skeleton-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes skeleton-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes skeleton-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
 .listening-room {
   position: relative;
   flex: 1;
@@ -781,20 +877,20 @@ input[type="range"]::-moz-range-thumb {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: #edf7ff;
+  color: hsl(var(--theme-hue) 90% 85%);
   /* A narrow dark edge keeps the glyph readable without a blurry halo. */
-  filter: drop-shadow(0 1px 1px #10233dcc);
+  filter: drop-shadow(0 1px 1px hsl(var(--theme-hue) 58% 15% / 0.8));
 }
 [data-neon="true"] .float-text {
   background: linear-gradient(
     110deg,
-    #80caff 0%,
-    #c8eaff 25%,
+    hsl(var(--theme-hue) 100% 75%) 0%,
+    hsl(var(--theme-hue) 100% 89%) 25%,
     #fff 45%,
     #fff 50%,
-    #c8eaff 65%,
-    #80caff 85%,
-    #80caff 100%
+    hsl(var(--theme-hue) 100% 89%) 65%,
+    hsl(var(--theme-hue) 100% 75%) 85%,
+    hsl(var(--theme-hue) 100% 75%) 100%
   );
   background-size: 250% 100%;
   background-position: 100% 50%;

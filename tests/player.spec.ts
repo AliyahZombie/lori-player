@@ -82,3 +82,58 @@ test("real local import, playback, seeking, lyrics, theming and persistence", as
   await expect(page.getByText("没有找到这首歌")).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test("shows a loading animation while restoring the saved library", async ({
+  page,
+}) => {
+  // Hold the first IndexedDB request open so the restoring state stays
+  // observable; the real app resolves it within a few milliseconds.
+  await page.addInitScript(() => {
+    const open = indexedDB.open.bind(indexedDB);
+    const slow = (request: IDBOpenDBRequest) =>
+      new Proxy(request, {
+        get(target, property) {
+          const value = Reflect.get(target, property, target);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+        set(target, property, value) {
+          if (
+            typeof value === "function" &&
+            (property === "onsuccess" || property === "onerror")
+          )
+            return Reflect.set(target, property, (...args: unknown[]) => {
+              window.setTimeout(() => (value as () => void)(...args), 900);
+            });
+          return Reflect.set(target, property, value);
+        },
+      });
+    indexedDB.open = ((...args: [string, number?]) =>
+      slow(open(...args))) as typeof indexedDB.open;
+  });
+  await page.goto("/");
+  const loading = page.locator(".playlist-loading");
+  await expect(loading).toBeVisible();
+  await expect(page.locator(".song-skeleton")).toHaveCount(6);
+  await expect(page.locator(".song-skeleton").first()).toHaveCSS(
+    "animation-name",
+    "skeleton-row-in",
+  );
+  // The shimmer rides on the pseudo element of every skeleton block.
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const cover = document.querySelector(".song-skeleton .skeleton-cover")!;
+        return getComputedStyle(cover, "::after").animationName;
+      }),
+    )
+    .toBe("skeleton-shimmer");
+  await expect(page.locator(".loading-ring")).toHaveCSS(
+    "animation-name",
+    "loading-spin",
+  );
+  await expect(page.getByText("正在读取曲库…")).toBeVisible();
+  // The empty-library prompt must not flash while the saved list loads.
+  await expect(page.locator(".playlist-empty")).toHaveCount(0);
+  await expect(loading).toHaveCount(0);
+  await expect(page.getByText("把喜欢的音乐放进来")).toBeVisible();
+});

@@ -560,7 +560,12 @@ function App() {
       listen("lori-quit-requested", () => void quitRef.current()),
     ]).then((list) => {
       if (disposed) list.forEach((f) => f());
-      else offs.push(...list);
+      else {
+        offs.push(...list);
+        void invoke("player_ready").catch((error) =>
+          setNotice(`播放器初始化失败：${String(error)}`),
+        );
+      }
     });
     return () => {
       disposed = true;
@@ -865,11 +870,17 @@ function App() {
           <div>
             <h1>播放列表</h1>
             <p>
-              {filtered.length} 首 ·{" "}
-              {Math.floor(
-                filtered.reduce((sum, t) => sum + t.duration, 0) / 60,
-              )}{" "}
-              分钟
+              {!ready ? (
+                "正在读取曲库…"
+              ) : (
+                <>
+                  {filtered.length} 首 ·{" "}
+                  {Math.floor(
+                    filtered.reduce((sum, t) => sum + t.duration, 0) / 60,
+                  )}{" "}
+                  分钟
+                </>
+              )}
             </p>
           </div>
           <button
@@ -900,7 +911,33 @@ function App() {
           )}
         </label>
         <div className="playlist-tracks">
-          {filtered.length ? (
+          {!ready ? (
+            <div
+              className="playlist-loading"
+              role="status"
+              aria-live="polite"
+              aria-label="正在加载已保存的歌曲"
+            >
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <div
+                  className="song-skeleton"
+                  key={i}
+                  aria-hidden="true"
+                  style={{ "--row-delay": `${i * 110}ms` } as React.CSSProperties}
+                >
+                  <span className="skeleton-cover" />
+                  <span className="skeleton-text">
+                    <i />
+                    <i />
+                  </span>
+                </div>
+              ))}
+              <p className="playlist-loading-note">
+                <span className="loading-ring" aria-hidden="true" />
+                正在加载已保存的歌曲…
+              </p>
+            </div>
+          ) : filtered.length ? (
             filtered.map((t) => (
               <div
                 className={`song ${currentId === t.id ? "selected" : ""}`}

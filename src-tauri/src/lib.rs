@@ -5,7 +5,11 @@ use lofty::{
     tag::Accessor,
 };
 use serde::Serialize;
-use std::{collections::HashSet, path::Path};
+use std::{
+    collections::HashSet,
+    path::Path,
+    sync::atomic::{AtomicBool, Ordering},
+};
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -554,6 +558,34 @@ fn show_main(app: &tauri::AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+#[derive(Default)]
+struct PlayerLifecycle {
+    ready: AtomicBool,
+    quit_requested: AtomicBool,
+}
+
+// A tray click can arrive before the WebView installs its listeners. Queue it
+// until the player can flush its ledger instead of silently dropping the exit.
+fn request_quit(app: &tauri::AppHandle) -> tauri::Result<()> {
+    let lifecycle = app.state::<PlayerLifecycle>();
+    lifecycle.quit_requested.store(true, Ordering::SeqCst);
+    if lifecycle.ready.load(Ordering::SeqCst) {
+        app.emit_to("main", "lori-quit-requested", ())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn player_ready(app: tauri::AppHandle) -> Result<(), String> {
+    let lifecycle = app.state::<PlayerLifecycle>();
+    lifecycle.ready.store(true, Ordering::SeqCst);
+    if lifecycle.quit_requested.load(Ordering::SeqCst) {
+        app.emit_to("main", "lori-quit-requested", ())
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show-player", "显示播放器", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
@@ -573,7 +605,7 @@ fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
             "quit-player" => {
                 // The player pauses and commits its last ledger checkpoint before
                 // acknowledging this request through quit_app.
-                if let Err(error) = app.emit_to("main", "lori-quit-requested", ()) {
+                if let Err(error) = request_quit(app) {
                     eprintln!("Could not request Lori exit: {error}");
                 }
             }
@@ -616,6 +648,7 @@ pub fn run() {
         std::env::set_var("GDK_BACKEND", "x11");
     }
     tauri::Builder::default()
+        .manage(PlayerLifecycle::default())
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             if let Err(error) = show_main(app) {
                 eprintln!("Could not restore Lori: {error}");
@@ -662,6 +695,7 @@ pub fn run() {
             focus_main,
             resize_lyrics,
             hide_main,
+            player_ready,
             quit_app
         ])
         .run(tauri::generate_context!())
