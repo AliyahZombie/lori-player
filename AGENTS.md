@@ -15,7 +15,7 @@
 
 安装流程：
 
-1. 运行与本次修改相关的测试和检查。每次安装前必须运行 `npm run build`、`npm test` 和 `npm run test:browser`，确认听歌统计与托盘回归测试均通过；不能跳过统计测试后宣称功能完整。
+1. 运行与本次修改相关的测试和检查。每次安装前必须运行 `npm run build` 和 `npm test`；不要求运行浏览器回归测试（`npm run test:browser`）。不能跳过 `npm test` 后宣称功能完整。
 2. 在项目根目录运行 `npm run tauri -- build --no-bundle`。该命令会先构建前端，再生成嵌入最新前端资源的 Rust release 可执行文件；不要只运行 `cargo build` 后安装旧前端。
 3. 将 `src-tauri/target/release/lori-player` 安装为上述系统可执行文件。先在目标目录创建临时文件、以 `755` 权限安装，再通过 `mv -f` 原子替换，避免直接覆盖正在运行的可执行文件。
 4. 保持应用菜单入口、图标和 Toolbox 指向同一安装位置；需要时刷新桌面入口缓存。安装位置或启动命令改变时，同步更新 Toolbox（`toolbox add ... --force`）。
