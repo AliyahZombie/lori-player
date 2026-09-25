@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import {
   BarChart3,
+  Calendar,
+  Clock,
   Download,
+  FolderOpen,
+  Music2,
   Upload,
   X,
   ArrowLeft,
   RefreshCw,
+  Search as SearchIcon,
 } from "lucide-react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
@@ -217,15 +222,30 @@ export function Statistics({ onClose, checkpoint, recordingError }: Props) {
       onCancel={onClose}
     >
       <header className="statistics-header">
-        <div>
-          <span className="statistics-eyebrow">LORI · LISTENING JOURNAL</span>
+        <div className="statistics-brand">
+          <span className="mini-brand-tag">
+            <BarChart3 size={14} /> LORI
+          </span>
           <h2 id="statistics-title">
-            <BarChart3 size={22} /> 听歌统计
+            听歌统计
           </h2>
         </div>
-        <button title="关闭听歌统计" onClick={onClose}>
-          <X size={20} />
-        </button>
+        <div className="statistics-header-actions">
+          <button
+            className="icon-button"
+            title="刷新统计"
+            disabled={loading || busy}
+            onClick={() => {
+              browsingHistory.current = false;
+              setRevision((n) => n + 1);
+            }}
+          >
+            <RefreshCw size={14} className={loading ? "spin" : ""} />
+          </button>
+          <button className="icon-button" title="关闭听歌统计" onClick={onClose}>
+            <X size={16} />
+          </button>
+        </div>
       </header>
       <div className="statistics-scroll">
         <p className="statistics-intro">
@@ -246,20 +266,11 @@ export function Statistics({ onClose, checkpoint, recordingError }: Props) {
               {label}
             </button>
           ))}
-          <button
-            title="刷新统计"
-            disabled={loading || busy}
-            onClick={() => {
-              browsingHistory.current = false;
-              setRevision((n) => n + 1);
-            }}
-          >
-            <RefreshCw size={14} />
-          </button>
         </div>
         <div className="statistics-dates">
-          <label>
-            从{" "}
+          <label className="statistics-date-field">
+            <Calendar size={13} />
+            <span>从</span>
             <input
               aria-label="统计开始日期"
               type="date"
@@ -270,8 +281,8 @@ export function Statistics({ onClose, checkpoint, recordingError }: Props) {
               }}
             />
           </label>
-          <label>
-            至{" "}
+          <label className="statistics-date-field">
+            <span>至</span>
             <input
               aria-label="统计结束日期"
               type="date"
@@ -284,6 +295,7 @@ export function Statistics({ onClose, checkpoint, recordingError }: Props) {
             />
           </label>
           <span className="statistics-live">
+            <span className={`live-dot ${loading ? "live-pulsing" : ""}`} />
             {loading ? "正在演算…" : "播放中每 5 秒更新"}
           </span>
         </div>
@@ -306,28 +318,37 @@ export function Statistics({ onClose, checkpoint, recordingError }: Props) {
         {valid && stats && (
           <>
             <div className="statistics-metrics">
-              <div>
-                <span>聆听时长</span>
+              <div className="statistics-metric-card primary">
+                <div className="metric-header">
+                  <Clock size={14} />
+                  <span>聆听总时长</span>
+                </div>
                 <strong data-testid="listening-total">
                   {listeningDuration(stats.milliseconds)}
                 </strong>
-                <small>重叠时间只计一次</small>
+                <small>精准时间段求并 · 排除暂停与重叠</small>
               </div>
-              <div>
-                <span>听过歌曲</span>
+              <div className="statistics-metric-card">
+                <div className="metric-header">
+                  <Music2 size={14} />
+                  <span>聆听歌曲数</span>
+                </div>
                 <strong>
                   {stats.songs.length}
                   <small> 首</small>
                 </strong>
-                <small>按文件 MD5 识别</small>
+                <small>按原音频 MD5 标识 · 改名不重复计</small>
               </div>
-              <div>
-                <span>有音乐的日子</span>
+              <div className="statistics-metric-card">
+                <div className="metric-header">
+                  <Calendar size={14} />
+                  <span>音乐相伴日数</span>
+                </div>
                 <strong>
                   {stats.days.length}
                   <small> 天</small>
                 </strong>
-                <small>按本地日期划分</small>
+                <small>按本地自然日划分统计</small>
               </div>
             </div>
             <div
@@ -362,16 +383,24 @@ export function Statistics({ onClose, checkpoint, recordingError }: Props) {
               <div className="statistics-panel" role="tabpanel">
                 {tab === "songs" && (
                   <>
-                    <input
-                      className="statistics-search"
-                      aria-label="搜索统计歌曲"
-                      placeholder="搜索歌曲、文件名或 MD5"
-                      value={search}
-                      onChange={(e) => {
-                        setSearch(e.target.value);
-                        setSongLimit(50);
-                      }}
-                    />
+                    <div className="search statistics-search-box">
+                      <SearchIcon size={14} />
+                      <input
+                        className="statistics-search"
+                        aria-label="搜索统计歌曲"
+                        placeholder="搜索歌曲、文件名或 MD5"
+                        value={search}
+                        onChange={(e) => {
+                          setSearch(e.target.value);
+                          setSongLimit(50);
+                        }}
+                      />
+                      {search && (
+                        <button title="清空搜索" onClick={() => setSearch("")}>
+                          <X size={13} />
+                        </button>
+                      )}
+                    </div>
                     <div className="statistics-ranking">
                       {songs.slice(0, songLimit).map((item, index) => (
                         <button
