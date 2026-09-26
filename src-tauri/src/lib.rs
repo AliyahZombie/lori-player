@@ -1,3 +1,4 @@
+mod shortcuts;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use lofty::{
     file::{AudioFile, TaggedFileExt},
@@ -649,6 +650,7 @@ pub fn run() {
     }
     tauri::Builder::default()
         .manage(PlayerLifecycle::default())
+        .manage(shortcuts::Shortcuts::default())
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             if let Err(error) = show_main(app) {
                 eprintln!("Could not restore Lori: {error}");
@@ -666,6 +668,10 @@ pub fn run() {
             }
         })
         .setup(|app| {
+            if !shortcuts::uses_portal() {
+                app.handle()
+                    .plugin(tauri_plugin_global_shortcut::Builder::new().build())?;
+            }
             create_tray(app.handle())?;
             if let (Some(window), Some(icon)) =
                 (app.get_webview_window("main"), app.default_window_icon())
@@ -685,6 +691,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            shortcuts::shortcut_backend,
+            shortcuts::apply_shortcuts,
             import_paths,
             load_audio,
             fingerprint_audio,

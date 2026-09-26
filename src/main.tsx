@@ -26,6 +26,7 @@ import {
   Check,
   Upload,
   Palette,
+  Settings2,
 } from "lucide-react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
@@ -45,6 +46,9 @@ import { imageHue, type ThemeMode } from "./theme";
 import { fingerprint } from "./fingerprint";
 import { useListeningLedger } from "./use-listening-ledger";
 import { Statistics } from "./Statistics";
+import { Settings } from "./Settings";
+import { useShortcuts } from "./use-shortcuts";
+import { adjustedVolume } from "./shortcuts";
 import "./style.css";
 const native = isTauri();
 type LyricState = {
@@ -314,6 +318,7 @@ function App() {
   const [overlayBusy, setOverlayBusy] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
   const [statisticsOpen, setStatisticsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [importMenu, setImportMenu] = useState(false);
   const wallpaperInput = useRef<HTMLInputElement>(null);
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -358,6 +363,16 @@ function App() {
       quitting.current = false;
     }
   };
+  const shortcuts = useShortcuts((action) => {
+    if (settingsOpen || quitting.current) return;
+    if (action === "previous") next(-1);
+    else if (action === "next") next(1);
+    else if (action === "toggle") toggle();
+    else if (action === "volumeUp")
+      setVolume((value) => adjustedVolume(value, 1));
+    else if (action === "volumeDown")
+      setVolume((value) => adjustedVolume(value, -1));
+  });
   const files = useRef<HTMLInputElement>(null);
   const folders = useRef<HTMLInputElement>(null);
   const lrcInput = useRef<HTMLInputElement>(null);
@@ -576,6 +591,13 @@ function App() {
     const handler = (event: KeyboardEvent) => {
       if (
         event.code === "Space" &&
+        !event.defaultPrevented &&
+        !event.repeat &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        !event.metaKey &&
+        !event.shiftKey &&
+        !document.querySelector("dialog[open]") &&
         !["INPUT", "TEXTAREA", "BUTTON"].includes(
           (event.target as HTMLElement).tagName,
         )
@@ -923,7 +945,9 @@ function App() {
                   className="song-skeleton"
                   key={i}
                   aria-hidden="true"
-                  style={{ "--row-delay": `${i * 110}ms` } as React.CSSProperties}
+                  style={
+                    { "--row-delay": `${i * 110}ms` } as React.CSSProperties
+                  }
                 >
                   <span className="skeleton-cover" />
                   <span className="skeleton-text">
@@ -991,13 +1015,26 @@ function App() {
         <footer className="playlist-footer">
           <button
             title="听歌统计"
+            aria-label="听歌统计"
+            className="playlist-tool"
             onClick={() => {
               setImportMenu(false);
               setStatisticsOpen(true);
             }}
           >
             <BarChart3 size={16} />
-            <span>听歌统计</span>
+          </button>
+          <button
+            title="设置"
+            aria-label="设置"
+            className="playlist-tool"
+            onClick={() => {
+              setImportMenu(false);
+              setSettingsOpen(true);
+            }}
+          >
+            <Settings2 size={17} />
+            {shortcuts.error && <i className="settings-error-dot" />}
           </button>
           <button
             title="导入音乐"
@@ -1431,6 +1468,9 @@ function App() {
           </div>
         )}
       </main>
+      {settingsOpen && (
+        <Settings {...shortcuts} onClose={() => setSettingsOpen(false)} />
+      )}
       {statisticsOpen && (
         <Statistics
           onClose={() => setStatisticsOpen(false)}
